@@ -213,7 +213,7 @@ class HDR_Image():
             
             wvl = self.hdr.bands.centers
             plot_band = self.hdr.read_band(wvl.index(wavelen))
-            
+            return plot_band
             print (type(wvl))
             wavelength = wvl[wvl.index(wavelen)]
             
@@ -350,10 +350,27 @@ class HDR_Image():
         
         bin_array = good_pixel_array
         bin_array[bin_array>0]=1
+        bin_array = bin_array.astype('float32')
+
+        #plt.imshow(bin_array[:,:,10],cmap='Spectral')
         
-        plt.imshow(bin_array[:,:,10])
+        try:
+            os.mkdir(r"D:Data\Lunar_Ice_Images\Shaded_Regions")
+        except:
+            pass
+        
+        tf.imwrite(r"D:Data\Lunar_Ice_Images\Shaded_Regions/"+self.date+"_"+self.time+"_raw.tif",
+                   bin_array[:,:,10],
+                   photometric='minisblack',
+                   imagej=True,
+                   metadata = self.meta_data_dict)
+        
+        good_pix = np.count_nonzero(bin_array[:,:,10])
+        total_pix = self.hdr.nrows*self.hdr.ncols
+        pct = good_pix/total_pix
             
-        #print (f'There are {bands} bands and {band.shape[0]*band.shape[1]} pixels')
+        print (bin_array.shape)
+        print (f'There are {good_pix} good pixels out of {total_pix} total pixels ({pct:.2%})')
         
     def H2O_p1(self):
         wv1 = self.hdr.read_band(10)
@@ -394,15 +411,13 @@ for obj in obj_list:
         
 #obj_list[0].plot_spec(100,100,plot_og=True,plot_boxcar=False,plot_cspline=False,plot_cspline_boxcar=True)
 
+for obj in obj_list:
+    obj.good_spectra()
+
 # =============================================================================
 # for obj in obj_list:
-#     obj.good_spectra()
+#     obj.plt_img(1289.41)
 # =============================================================================
-
-#obj_list[2].good_spectra()
-
-for obj in obj_list:
-    obj.plt_img(1289.41)
 
 
 end = time.time()
