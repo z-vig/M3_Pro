@@ -179,6 +179,8 @@ class HDR_Image():
             ax3.set_xticks([])
             ax3.set_yticks([])
             
+            plt.close()
+            
             try:
                 os.mkdir(r"D:Data\Lunar_Ice_Images/"+self.date+"_"+self.time)
             except:
@@ -221,6 +223,8 @@ class HDR_Image():
             ax.text(305,100,self.meta_data_str,color="black",fontsize="xx-large")
             ax.set_xticks([])
             ax.set_yticks([])
+            
+            plt.close()
             
             try:
                 os.mkdir(r"D:Data\Lunar_Ice_Images/"+self.date+"_"+self.time)
@@ -332,11 +336,25 @@ class HDR_Image():
             return spec_list,wvl_list
         
     def good_spectra(self):
-        bands = 1
-        for i in range(0,self.hdr.nbands-1):
-            band = self.hdr.read_band(i)
-            bands+=1
-        print (f'There are {bands} bands and {band.shape[0]*band.shape[1]} pixels')
+        pixel_list=[]
+        test_pixel = self.hdr.read_pixel(np.random.randint(0,self.hdr.nrows),np.random.randint(0,self.hdr.ncols))
+        nbands = len(test_pixel[test_pixel>-900])
+        good_pixel_array = np.zeros((self.hdr.nrows,self.hdr.ncols,nbands))
+        for x in range(0,self.hdr.nrows):
+            for y in range(0,self.hdr.ncols):
+                pixel = self.hdr.read_pixel(x,y)
+                pixel = pixel[pixel>-999]
+                if np.average(pixel)>0.05:
+                    good_pixel_array[x,y] = pixel
+                    pixel_list.append(np.average(pixel))
+        
+        bin_array = good_pixel_array
+        bin_array[bin_array>0]=1
+        
+        plt.imshow(bin_array[:,:,10])
+            
+        #print (f'There are {bands} bands and {band.shape[0]*band.shape[1]} pixels')
+        
     def H2O_p1(self):
         wv1 = self.hdr.read_band(10)
         wv2 = self.hdr.read_band(12)
@@ -356,10 +374,8 @@ for path,file in zip(hdr_folder_list,hdr_file_list):
     if file.find('rfl') > -1:
         obj_list.append(HDR_Image(path+'/'+file))
 
-# =============================================================================
-# for obj in obj_list:
-#     obj.datetime()
-# =============================================================================
+for obj in obj_list:
+    obj.datetime()
 
 # =============================================================================
 # for obj in obj_list:
@@ -383,11 +399,10 @@ for path,file in zip(hdr_folder_list,hdr_file_list):
 #     obj.good_spectra()
 # =============================================================================
 
-# =============================================================================
-# for obj in obj_list:
-#     obj.plt_img(1289.41)
-# =============================================================================
+#obj_list[2].good_spectra()
 
+for obj in obj_list:
+    obj.plt_img(1289.41)
 
 
 end = time.time()
@@ -397,5 +412,5 @@ if runtime < 1:
 elif runtime < 60 and runtime > 1:
     print (f'Program Executed in {runtime:.3f} seconds')
 elif runtime > 60:
-    print (f'Program Executed in {runtime/60:.1f} minutes and {runtime%60:.3f} seconds')
+    print (f'Program Executed in {runtime/60:.0f} minutes and {runtime%60:.3f} seconds')
     
