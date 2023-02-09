@@ -27,48 +27,9 @@ from tkinter.filedialog import askopenfile as askfile
 import tifffile as tf
 from scipy import interpolate as interp
 #from Linear_Spline import linear_spline
+    
+    
 
-def get_hdr_files(select):
-    ##Asks user what the source directory is for M3 Data
-    Tk().withdraw()
-    if select == True:    
-        hdr_folder_path = askdir()
-    elif select == False:
-        hdr_folder_path = r"D:\Data\20230131T17554836251"
-    else:
-        raise Exception("Select is either True or False")
-    
-    
-    ##Unzips files and places them in "extracted_files" folder in source directory
-    hdr_folder = os.listdir(hdr_folder_path)
-    if 'extracted_files' not in hdr_folder:
-        for file in hdr_folder:
-            if file.find(".zip") > -1:
-                myfile = zipfile.ZipFile(hdr_folder_path+"/"+file)
-                myfile.extractall(path=hdr_folder_path+"/extracted_files/"+file[0:-4])
-    
-    
-    ##Gets list of all .hdr files in the source directory
-    ex_files = os.listdir(hdr_folder_path+'/'+'extracted_files')
-    hdr_file_list = []
-    hdr_folder_list = []
-    for i in os.walk(hdr_folder_path):
-        if len(i[2]) != 0 and ''.join(i[2]).find('.hdr') > -1:
-            for file in i[2]:
-                if file.find('hdr') > -1:
-                    #print (i[0],file)
-                    hdr_file_list.append(file)
-                    hdr_folder_list.append(i[0])
-    
-    
-    ##Counts the number of images used
-    n = 0
-    for i in hdr_file_list:
-        if i.find('rfl') > -1:
-            n+=1
-    print (f"Number of Files: {n}")
-    
-    return hdr_file_list,hdr_folder_list
 
 
 ##Unused plotting functions
@@ -187,22 +148,29 @@ class HDR_Image():
                 pass
             
             #plt.savefig(r"D:Data\Lunar_Ice_Images/"+self.date+"_"+self.time+"/"+"supplemental.tif")
-            tf.imwrite(r"D:Data\Lunar_Ice_Images/"+self.date+"_"+self.time+"/"+"topo.tif",
+            try:
+                os.mkdir(r"D:Data\Lunar_Ice_Images/"+self.date+"_"+self.time+"/supplemental/topo")
+                os.mkdir(r"D:Data\Lunar_Ice_Images/"+self.date+"_"+self.time+"/supplemental/temp")
+                os.mkdir(r"D:Data\Lunar_Ice_Images/"+self.date+"_"+self.time+"/supplemental/longwave")
+                os.mkdir(r"D:Data\Lunar_Ice_Images/"+self.date+"_"+self.time+"/supplemental/supp")
+            except:
+                pass
+            tf.imwrite(r"D:Data\Lunar_Ice_Images/"+self.date+"_"+self.time+"/supplemental/topo/"+"topo.tif",
                        plot_topo,
                        photometric='minisblack',
                        imagej = True,
                        metadata = self.meta_data_dict)
-            tf.imwrite(r"D:Data\Lunar_Ice_Images/"+self.date+"_"+self.time+"/"+"temp.tif",
+            tf.imwrite(r"D:Data\Lunar_Ice_Images/"+self.date+"_"+self.time+"/supplemental/temp/"+"temp.tif",
                        plot_temp,
                        photometric='minisblack',
                        imagej=True,
                        metadata = self.meta_data_dict)
-            tf.imwrite(r"D:Data\Lunar_Ice_Images/"+self.date+"_"+self.time+"/"+"longwave.tif",
+            tf.imwrite(r"D:Data\Lunar_Ice_Images/"+self.date+"_"+self.time+"/supplemental/longwave/"+"longwave.tif",
                        plot_longwav,
                        photometric='minisblack',
                        imagej=True,
                        metadata = self.meta_data_dict)
-            tf.imwrite(r"D:Data\Lunar_Ice_Images/"+self.date+"_"+self.time+"/"+"supp.tif",
+            tf.imwrite(r"D:Data\Lunar_Ice_Images/"+self.date+"_"+self.time+"/supplemental/all_img/"+"supp.tif",
                        plot_all,
                        photometric='rgb',
                        metadata = self.meta_data_dict)
@@ -213,7 +181,6 @@ class HDR_Image():
             
             wvl = self.hdr.bands.centers
             plot_band = self.hdr.read_band(wvl.index(wavelen))
-            return plot_band
             print (type(wvl))
             wavelength = wvl[wvl.index(wavelen)]
             
@@ -232,7 +199,12 @@ class HDR_Image():
                 pass
                 
             #plt.savefig(r"D:Data\Lunar_Ice_Images/"+self.date+"_"+self.time+"/"+str(wavelength)+".tif")
-            tf.imwrite(r"D:Data\Lunar_Ice_Images/"+self.date+"_"+self.time+"/"+str(wavelength)+"_raw.tif",
+            try:
+                os.mkdir(r"D:Data\Lunar_Ice_Images/"+self.date+"_"+self.time+"/"+str(wavelength))
+            except:
+                pass
+            
+            tf.imwrite(r"D:Data\Lunar_Ice_Images/"+self.date+"_"+self.time+"/"+str(wavelength)+'/'+str(wavelength)+"_raw.tif",
                        plot_band,
                        photometric='minisblack',
                        imagej = True,
@@ -258,7 +230,7 @@ class HDR_Image():
                 pass
             
             f = interp.CubicSpline(np.array(wvl_list),np.array(spec_list))
-            x = np.linspace(min(wvl_list),max(wvl_list),30)
+            x = np.linspace(min(wvl_list),max(wvl_list),80)
             
             if kwargs["plot_cspline"] == True:
                 ax.plot(x,f(x),'-',color="orange",label='Cubic Spline')
@@ -275,8 +247,15 @@ class HDR_Image():
                     plt.show()
             except:
                 pass
-                
-            box_size = int(input("Box Size: "))
+            
+            try:
+                if kwargs["box_size"] == "select":
+                    box_size = int(input("Box Size: "))
+                else:
+                    box_size = kwargs["box_size"]
+            except:
+                pass
+            
             avg_array = np.zeros((box_size,2))
             avg_rfl = []
             std_rfl = []
@@ -315,7 +294,7 @@ class HDR_Image():
             
             f1 = interp.CubicSpline(np.array(avg_wvl),np.array(avg_rfl))
             f1_err = interp.CubicSpline(np.array(avg_wvl),np.array(std_rfl))
-            x1 = np.linspace(min(wvl_list),max(wvl_list),30)
+            x1 = np.linspace(min(wvl_list),max(wvl_list),80)
 
             if kwargs["plot_cspline_boxcar"] == True:
                 ax.plot(x1,f1(x1),c='black',ls='dashdot',label=f'Boxcar({box_size} pts.)  & Cubic Spline')
@@ -383,13 +362,17 @@ class HDR_Image():
         plt.xticks([])
         plt.yticks([])
         plt.show()
-        
-hdr_file_list,hdr_folder_list = get_hdr_files(False)
+
+if 'hdr_file_list' in locals():
+    print ('Necessary Variables are Defined')
+else:
+    from M3_UnZip import *
+    hdr_file_list,hdr_files_path = M3_unzip(False,folder="D:/Data/20230209T095534013597")
 
 obj_list = []
-for path,file in zip(hdr_folder_list,hdr_file_list):
+for file in hdr_file_list:
     if file.find('rfl') > -1:
-        obj_list.append(HDR_Image(path+'/'+file))
+        obj_list.append(HDR_Image(hdr_files_path+'/'+file[0:-4]+'/'+file))
 
 for obj in obj_list:
     obj.datetime()
@@ -409,15 +392,15 @@ for obj in obj_list:
 #         pixels += 1
 # =============================================================================
         
-#obj_list[0].plot_spec(100,100,plot_og=True,plot_boxcar=False,plot_cspline=False,plot_cspline_boxcar=True)
-
-for obj in obj_list:
-    obj.good_spectra()
+#obj_list[0].plot_spec(91,100,plot_og=True,plot_boxcar=False,plot_cspline=False,plot_cspline_boxcar=True,box_size=5)
 
 # =============================================================================
 # for obj in obj_list:
-#     obj.plt_img(1289.41)
+#     obj.good_spectra()
 # =============================================================================
+
+for obj in obj_list:
+    obj.plt_img(1289.41)
 
 
 end = time.time()
