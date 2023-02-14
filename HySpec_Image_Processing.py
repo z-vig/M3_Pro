@@ -26,6 +26,7 @@ from tkinter.filedialog import askdirectory as askdir
 from tkinter.filedialog import askopenfile as askfile
 import tifffile as tf
 from scipy import interpolate as interp
+from spec_average import spec_avg
 #from Linear_Spline import linear_spline
     
     
@@ -117,8 +118,8 @@ class HDR_Image():
     
     
     ##Plots image of a given wavelength or all three supplemental image, if using a .sup file as input
-    def plt_img(self,wavelen):
-        if self.hdr.bands.centers == None:
+    def plt_img(self,wavelen,**kwargs):
+        if self.hdr.bands.centers == None and kwargs["All_Bands"] == False:
             fig_big = plt.figure(figsize=(20,20))
             
             plot_topo = self.hdr.read_band(0)
@@ -176,11 +177,17 @@ class HDR_Image():
                        metadata = self.meta_data_dict)
             
         
-        elif self.hdr.bands.centers != None:
+        elif self.hdr.bands.centers != None and kwargs["All_Bands"] == False:
             fig_big = plt.figure(figsize=(20,20))
             
             wvl = self.hdr.bands.centers
+            
             plot_band = self.hdr.read_band(wvl.index(wavelen))
+            
+            ##Normalizing
+            norm_band = plot_band-np.min(plot_band)
+            norm_band = norm_band/np.max(norm_band)
+            
             print (type(wvl))
             wavelength = wvl[wvl.index(wavelen)]
             
@@ -204,12 +211,43 @@ class HDR_Image():
             except:
                 pass
             
+            #tf.imwrite(r"C:\Users\zacha/OneDrive/Desktop/test1.tif",norm_band,photometric='minisblack')
+            #print (norm_band.dtype)
+            
             tf.imwrite(r"D:Data\Lunar_Ice_Images/"+self.date+"_"+self.time+"/"+str(wavelength)+'/'+str(wavelength)+"_raw.tif",
-                       plot_band,
+                       norm_band,
                        photometric='minisblack',
-                       imagej = True,
                        metadata = self.meta_data_dict)
-    
+        
+        elif kwargs["All_Bands"] == True:
+            wvl = self.hdr.bands.centers
+            band_index = []
+            for index,w in enumerate(wvl):
+                if w>1000 and w<2500:
+                    band_index.append(index)
+            rfl = self.hdr.read_bands(band_index)
+            
+            norm_array = np.zeros(rfl.shape).astype("float32")
+            for i in range(0,rfl.shape[2]):
+                band = rfl[:,:,i]
+                band_norm = band-np.min(band)
+                band_norm = band_norm.astype("float32")
+                band_norm = 255*band_norm/np.max(band_norm).astype("float32")
+                print (np.max(band_norm),np.min(band_norm))
+                norm_array[:,:,i] = band_norm
+                
+            print (norm_array.dtype)
+            try:
+                os.mkdir(r"D:/Data/Lunar_Ice_Images/"+self.date+"_"+self.time+'/all')
+            except:
+                pass
+            
+            tf.imwrite(r"D:/Data/Lunar_Ice_Images/"+self.date+"_"+self.time+'/all/'+self.date+"_"+self.time+"_allBands.tif",
+                       norm_array,
+                       photometric='rgb',
+                       metadata=self.meta_data_dict)
+            
+            print ("TIFF File Written")
     
     ## Plots spectrum of a given x,y point of HDR Image
     def plot_spec(self,x,y,**kwargs):
@@ -229,11 +267,11 @@ class HDR_Image():
             else:
                 pass
             
-            f = interp.CubicSpline(np.array(wvl_list),np.array(spec_list))
-            x = np.linspace(min(wvl_list),max(wvl_list),80)
+            f1 = interp.CubicSpline(np.array(wvl_list),np.array(spec_list))
+            x1 = np.linspace(min(wvl_list),max(wvl_list),80)
             
             if kwargs["plot_cspline"] == True:
-                ax.plot(x,f(x),'-',color="orange",label='Cubic Spline')
+                ax.plot(x1,f1(x1),'-',color="orange",label='Cubic Spline')
             else:
                 pass
 
@@ -256,34 +294,7 @@ class HDR_Image():
             except:
                 pass
             
-            avg_array = np.zeros((box_size,2))
-            avg_rfl = []
-            std_rfl = []
-            avg_wvl = []
-            n = 1
-            for spec,wvl in zip(spec_list,wvl_list):
-                if n%box_size != 0:
-                    avg_array[n-1] = (spec,wvl)
-                    n+=1
-                elif n%box_size == 0:
-                    avg_array[n-1] = (spec,wvl)
-                    avg_rfl.append(np.average(avg_array[:,0]))
-                    std_rfl.append(np.std(avg_array[:,0]))
-                    avg_wvl.append(np.average(avg_array[:,1]))
-                    avg_array = np.zeros((box_size,2))
-                    n=1
-            
-            rfl_last = []
-            wvl_last = []
-            for rfl,wvl in zip(avg_array[:,0],avg_array[:,1]):
-                if rfl > 0:
-                    rfl_last.append(rfl)
-                    wvl_last.append(wvl)
-                    
-            
-            avg_rfl.append(np.average(rfl_last))
-            std_rfl.append(np.std(rfl_last))
-            avg_wvl.append(np.average(wvl_last))
+            avg_rfl,std_rfl,avg_wvl = spec_avg(spec_list,wvl_list,5)
 
             if kwargs["plot_boxcar"] == True:
                 ax.plot(avg_wvl,avg_rfl,c='red',label=f'Boxcar({box_size} pts.)')
@@ -292,13 +303,13 @@ class HDR_Image():
             else: 
                 pass
             
-            f1 = interp.CubicSpline(np.array(avg_wvl),np.array(avg_rfl))
-            f1_err = interp.CubicSpline(np.array(avg_wvl),np.array(std_rfl))
-            x1 = np.linspace(min(wvl_list),max(wvl_list),80)
+            f2 = interp.CubicSpline(np.array(avg_wvl),np.array(avg_rfl))
+            f2_err = interp.CubicSpline(np.array(avg_wvl),np.array(std_rfl))
+            x2 = np.linspace(min(wvl_list),max(wvl_list),80)
 
             if kwargs["plot_cspline_boxcar"] == True:
-                ax.plot(x1,f1(x1),c='black',ls='dashdot',label=f'Boxcar({box_size} pts.)  & Cubic Spline')
-                ax.fill_between(x1,f1(x1)+f1_err(x1),f1(x1)-f1_err(x1),alpha=0.1,color='black')
+                ax.plot(x2,f2(x2),c='black',ls='dashdot',label=f'Boxcar({box_size} pts.)  & Cubic Spline')
+                ax.fill_between(x2,f2(x2)+f2_err(x2),f2(x2)-f2_err(x2),alpha=0.1,color='black')
             else:
                 pass
                     
@@ -307,6 +318,13 @@ class HDR_Image():
             ax.set_ylabel('Reflectance')
             
             ax.legend()
+            
+            name_str = "_"
+            for key,value in zip(kwargs.keys(),kwargs.values()):
+                if value == True:
+                    name_str = name_str+key[key.find('_')+1:]+'_'
+            
+            plt.savefig(r"D:Data/Figures/"+self.hdr.filename[59:67]+"_"+str(x)+"_"+str(y)+name_str+".png")
             
             #return spec_list,wvl_list
             
@@ -351,23 +369,40 @@ class HDR_Image():
         print (bin_array.shape)
         print (f'There are {good_pix} good pixels out of {total_pix} total pixels ({pct:.2%})')
         
-    def H2O_p1(self):
-        wv1 = self.hdr.read_band(10)
-        wv2 = self.hdr.read_band(12)
-        wv3 = self.hdr.read_band(14)
+    def H2O_p1(self,x,y):
+        rfl = []
+        wvl = []
+        for r,w in zip(self.hdr.read_pixel(x,y),self.hdr.bands.centers):
+            if r>-900 and w<2500 and w>1000:
+                rfl.append(r)
+                wvl.append(w)
         
-        wv_plot = (wv1-wv2)/wv3
+        rfl,wvl = np.array(rfl),np.array(wvl)
+        avg_rfl,std_rfl,avg_wvl = spec_avg(rfl,wvl,5)
         
-        plt.imshow(wv_plot,cmap='gray')
-        plt.xticks([])
-        plt.yticks([])
-        plt.show()
+        fig = plt.figure()
+        ax = fig.add_subplot(1,1,1)
+        
+        f = interp.CubicSpline(avg_wvl,avg_rfl)
+        f_err = interp.CubicSpline(avg_wvl,std_rfl)
+        x = np.linspace(min(wvl),max(wvl),80)
+        
+# =============================================================================
+#         ax.plot(wvl,rfl,ls='--')
+#         ax.plot(avg_wvl,avg_rfl)
+# =============================================================================
+        ax.plot(x,f(x),ls='dashdot',c='k')
+        
+        return x,f(x)
+        
+        
+        
 
 if 'hdr_file_list' in locals():
     print ('Necessary Variables are Defined')
 else:
     from M3_UnZip import *
-    hdr_file_list,hdr_files_path = M3_unzip(False,folder="D:/Data/20230209T095534013597")
+    hdr_file_list,hdr_files_path = M3_unzip(False,folder=r"D:/Data/20230209T095534013597")
 
 obj_list = []
 for file in hdr_file_list:
@@ -392,16 +427,21 @@ for obj in obj_list:
 #         pixels += 1
 # =============================================================================
         
-#obj_list[0].plot_spec(91,100,plot_og=True,plot_boxcar=False,plot_cspline=False,plot_cspline_boxcar=True,box_size=5)
+#obj_list[0].plot_spec(91,100,plot_og=True,plot_boxcar=True,plot_cspline=False,plot_cspline_boxcar=False,box_size=5)
+
+#x,y = obj_list[0].H2O_p1(91,100)
 
 # =============================================================================
 # for obj in obj_list:
 #     obj.good_spectra()
 # =============================================================================
+#obj_list[2].plt_img(1209.57)
 
-for obj in obj_list:
-    obj.plt_img(1289.41)
-
+# =============================================================================
+# for obj in obj_list:
+#     obj.plt_img(1289.41)
+# =============================================================================
+arr = obj_list[0].plt_img(1289.41,All_Bands=True)
 
 end = time.time()
 runtime = end-start
