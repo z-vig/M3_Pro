@@ -27,6 +27,7 @@ from tkinter.filedialog import askopenfile as askfile
 import tifffile as tf
 from scipy import interpolate as interp
 from spec_average import spec_avg
+from sympy import *
 #from Linear_Spline import linear_spline
     
     
@@ -227,16 +228,18 @@ class HDR_Image():
                     band_index.append(index)
             rfl = self.hdr.read_bands(band_index)
             
-            norm_array = np.zeros(rfl.shape).astype("float32")
+            norm_array = np.zeros(rfl.shape)
             for i in range(0,rfl.shape[2]):
                 band = rfl[:,:,i]
                 band_norm = band-np.min(band)
-                band_norm = band_norm.astype("float32")
-                band_norm = 255*band_norm/np.max(band_norm).astype("float32")
-                print (np.max(band_norm),np.min(band_norm))
+                band_norm = band_norm
+                band_norm = 255*band_norm/np.max(band_norm)
+                band_norm = band_norm.astype('int32')
+                #print (np.max(band_norm),np.min(band_norm))
                 norm_array[:,:,i] = band_norm
                 
-            print (norm_array.dtype)
+            norm_array = norm_array.astype("int")
+            #print (norm_array.dtype)
             try:
                 os.mkdir(r"D:/Data/Lunar_Ice_Images/"+self.date+"_"+self.time+'/all')
             except:
@@ -382,18 +385,69 @@ class HDR_Image():
         
         fig = plt.figure()
         ax = fig.add_subplot(1,1,1)
+        ax.plot(wvl,rfl)
         
         f = interp.CubicSpline(avg_wvl,avg_rfl)
         f_err = interp.CubicSpline(avg_wvl,std_rfl)
-        x = np.linspace(min(wvl),max(wvl),80)
+        x = np.linspace(min(wvl),max(wvl),100)
+        x = np.array([x])
         
 # =============================================================================
 #         ax.plot(wvl,rfl,ls='--')
 #         ax.plot(avg_wvl,avg_rfl)
 # =============================================================================
-        ax.plot(x,f(x),ls='dashdot',c='k')
+        #ax.plot(x,f(x),ls='dashdot',c='k')
         
-        return x,f(x)
+        x_test = np.linspace(-2,2,20)
+        def func(x):
+            return 1+-1.6*x+0.3*x**2+x**3+0.45*x**4
+        y_test = []
+        for i in x_test:
+            y_test.append(func(i))
+        
+        x_test = np.array([x_test])
+        
+        z = np.polyfit(x[0],f(x)[0],14)
+        
+        z = np.array([np.flip(z)])
+        
+        powers = np.array([np.arange(0,len(z[0]))])
+        
+        
+        def poly(x,z):
+            return np.dot(z,np.repeat(x,len(z[0]),axis=0)**powers.T)
+        
+
+        f1 = poly(x,z)
+        
+        #print (f1.shape)
+        
+        
+        ax.scatter(x,f(x),c='orange')
+        ax.plot(x[0],f1[0],c='k')
+        
+        self.wvl_cubfit = x[0]
+        self.rfl_cubfit = f(x)[0]
+        self.wvl_polyfit = x[0]
+        self.rfl_polyfit = f1[0]
+        self.z = z[0]
+        
+        return x,f1
+        
+    def get_minima(self):
+        fig,ax = plt.subplots(1,1)
+        ax.plot(self.wvl_cubfit,self.rfl_cubfit)
+        ax.plot(self.wvl_polyfit,self.rfl_polyfit)
+        
+        
+        for n in range(0,len(self.rfl_cubfit)):
+            if n < 79:
+                diff = self.rfl_cubfit[n]-self.rfl_cubfit[n+1]
+                
+                
+                
+        
+        
         
         
         
@@ -429,19 +483,25 @@ for obj in obj_list:
         
 #obj_list[0].plot_spec(91,100,plot_og=True,plot_boxcar=True,plot_cspline=False,plot_cspline_boxcar=False,box_size=5)
 
-#x,y = obj_list[0].H2O_p1(91,100)
+x,y = obj_list[0].H2O_p1(80,100)
+
+obj_list[0].get_minima()
 
 # =============================================================================
 # for obj in obj_list:
 #     obj.good_spectra()
 # =============================================================================
-#obj_list[2].plt_img(1209.57)
+#obj_list[0].plt_img(1209.57)
 
 # =============================================================================
 # for obj in obj_list:
 #     obj.plt_img(1289.41)
 # =============================================================================
-arr = obj_list[0].plt_img(1289.41,All_Bands=True)
+
+# =============================================================================
+# for obj in obj_list:
+#     obj.plt_img(1289.41,All_Bands=True)
+# =============================================================================
 
 end = time.time()
 runtime = end-start
