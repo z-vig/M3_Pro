@@ -30,12 +30,13 @@ def spec_avg(spec_list,wvl_list,box_size):
     
     rfl_last = []
     wvl_last = []
+    #print (avg_array)
     for rfl,wvl in zip(avg_array[:,0],avg_array[:,1]):
-        if rfl > 0:
+        if rfl != 0:
             rfl_last.append(rfl)
             wvl_last.append(wvl)
             
-    
+    #print (wvl_last)
     avg_rfl.append(np.average(rfl_last))
     std_rfl.append(np.std(rfl_last))
     avg_wvl.append(np.average(wvl_last))
