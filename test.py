@@ -20,21 +20,32 @@ import numpy as np
 # 
 # =============================================================================
 
-class MyClass:
-    def __init__(self,value):
-        self._value = value
-        
-    @property 
-    def value(self):
-        print ('Getting Value')
-        return self._value
+# =============================================================================
+# class MyClass:
+#     def __init__(self,value):
+#         self._value = value
+#         
+#     @property 
+#     def value(self):
+#         print ('Getting Value')
+#         return self._value
+#     
+#     @value.setter 
+#     def value(self,value):
+#         print ('Setting value to ' + value)
+#         self._value = value
+#     
+#     @value.deleter 
+#     def value(self):
+#         print ('Deleting Value')
+#         del self._value
+# =============================================================================
+
+def func(**kwargs):
+    defaultKwargs = {'arg1':3,'arg2':4,'arg3':5}
+    kwargs = {**defaultKwargs,**kwargs}
+    print (kwargs["arg1"])
+    print (kwargs["arg2"])
+    print (kwargs["arg3"])
     
-    @value.setter 
-    def value(self,value):
-        print ('Setting value to ' + value)
-        self._value = value
-    
-    @value.deleter 
-    def value(self):
-        print ('Deleting Value')
-        del self._value
+func(arg2=27)

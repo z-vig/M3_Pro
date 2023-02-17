@@ -87,6 +87,8 @@ for folder in os.walk(home_dir):
         
         shutil.copyfile(src_aux,dst_aux)
         shutil.copyfile(src_tfw,dst_tfw)
+
+
         
         
         

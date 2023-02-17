@@ -26,6 +26,7 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as tck
 import numpy as np
 import time
+from fancy_spec_plot import fancy_spec_plot
 start = time.time()
 
 # Importing Necessary Libraries
@@ -120,6 +121,8 @@ class HDR_Image():
 
     # Plots image of a given wavelength or all three supplemental image, if using a .sup file as input
     def plt_img(self, wavelen, **kwargs):
+        defaultKwargs = {"All_Bands":True,"Norm":"All",'All_max':1,'All_min':0}
+        kwargs = {**defaultKwargs,**kwargs}
         if self.hdr.bands.centers == None and kwargs["All_Bands"] == False:
             fig_big = plt.figure(figsize=(20, 20))
 
@@ -233,19 +236,30 @@ class HDR_Image():
                 if w > 1000 and w < 2500:
                     band_index.append(index)
             rfl = self.hdr.read_bands(band_index)
-
-            norm_array = np.zeros(rfl.shape)
-            for i in range(0, rfl.shape[2]):
-                band = rfl[:, :, i]
-                band_norm = band-np.min(band)
-                band_norm = band_norm
-                band_norm = 255*band_norm/np.max(band_norm)
-                band_norm = band_norm.astype('int32')
-                #print (np.max(band_norm),np.min(band_norm))
-                norm_array[:, :, i] = band_norm
-
-            norm_array = norm_array.astype("int")
-            #print (norm_array.dtype)
+            
+            ##Normalizing
+            def norm(_max,_min):
+                norm_array = np.zeros(rfl.shape)
+                for i in range(0, rfl.shape[2]):
+                    band = rfl[:, :, i]
+                    band_norm = band-_min
+                    band_norm = band_norm
+                    band_norm = 255*band_norm/np.max(band_norm)
+                    band_norm = band_norm.astype('int32')
+                    #print (np.max(band_norm),np.min(band_norm))
+                    norm_array[:, :, i] = band_norm
+    
+                norm_array = norm_array.astype("int")
+            
+            
+            if kwargs.get('Norm') == 'Image':
+                
+                #print (norm_array.dtype)
+                
+            elif kwargs.get('Norm') == 'All':
+                
+            
+            
             try:
                 os.mkdir(r"D:/Data/Lunar_Ice_Images/" +
                          self.date+"_"+self.time+'/all')
@@ -566,8 +580,10 @@ for file in hdr_file_list:
     if file.find('rfl') > -1:
         obj_list.append(HDR_Image(hdr_files_path+'/'+file[0:-4]+'/'+file))
 
-for obj in obj_list:
-    obj.datetime()
+# =============================================================================
+# for obj in obj_list:
+#     obj.datetime()
+# =============================================================================
 
 # =============================================================================
 # for obj in obj_list:
@@ -584,7 +600,7 @@ for obj in obj_list:
 #         pixels += 1
 # =============================================================================
 
-#R_meas,x_vals = obj_list[0].plot_spec(91,100,plot_og=True,plot_boxcar=False,plot_cspline=False,plot_cspline_boxcar=False,box_size=5)
+R_meas,x_vals = obj_list[0].plot_spec(91,100,plot_og=True,plot_boxcar=False,plot_cspline=False,plot_cspline_boxcar=False,box_size=5)
 
 # =============================================================================
 # x_pix = range(0,obj_list[0].hdr.nrows)
@@ -598,6 +614,8 @@ for obj in obj_list:
 # =============================================================================
 
 #true_arr = obj_list[0].good_spectra()
+
+##Get arr_list
 # =============================================================================
 # arr_list = []
 # for obj in obj_list:
@@ -638,15 +656,9 @@ def avg_by_img(data_arr):
         y[i] = np.average(rfl_total_avglist[:,i])
         std[i] = np.sqrt(np.sum(rfl_total_stdlist[:,i]**2))/len(rfl_total_stdlist[:,i])
         
-    fig,ax = plt.subplots(1,1)                        
-    ax.fill_between(x,y-std,y+std,color='gray',alpha=0.3)
-    ax.plot(x,y,color='red',linewidth=0.8)
-    ax.set_xlim([min(wav_num),max(wav_num)])
-    ax.set_ylabel("Reflectance",fontname="Times New Roman",fontsize=12)
-    ax.set_xlabel("Wavelength",fontname="Times New Roman",fontsize=12)
-    ax.set_xticks(np.linspace(1200,2400,7),fontname="Source Code Pro")
-    ax.set_yticks(np.linspace(0.1,0.3,5),fontname="Source Code Pro")
-    ax.set_title("Average Reflectance",fontname="Times New Roman",fontsize=18)
+    fancy_spec_plot(x,y,std=std,
+                    title="Average Reflectance of Non-Shaded Lunar South Pole",
+                    ylabel= 'Reflectance', xlabel = 'Wavelength (\u03BCm)')
 #avg_by_img(data_arr)
 
 def avg_by_pixel(arr_list):
@@ -660,7 +672,11 @@ def avg_by_pixel(arr_list):
     
     return rfl_by_pix_arr
     
-#big_arr = avg_by_pixel(arr_list)
+# =============================================================================
+# big_arr = avg_by_pixel(arr_list)
+# big_arr = np.delete(big_arr,0,1)
+# print ("Big Array Filled")
+# =============================================================================
 
 y = np.zeros((83))
 x = obj_list[0].hdr.bands.centers[2:]
@@ -670,19 +686,9 @@ for i in range(0,len(big_arr[:,0])):
     std[i] = np.std(big_arr[i,:])
 
 ##Plot Average Reflectance Data
-# =============================================================================
-# fig,ax = plt.subplots(1,1)                        
-# ax.fill_between(x,y-std,y+std,color='gray',alpha=0.3)
-# ax.plot(x,y,color='red',linewidth=0.8)
-# ax.set_xlim([min(wav_num),max(wav_num)])
-# ax.set_ylabel("Reflectance",fontname="Times New Roman",fontsize=12)
-# ax.set_xlabel("Wavelength",fontname="Times New Roman",fontsize=12)
-# ax.set_xticks(np.linspace(1000,2500,4),fontname="Source Code Pro")
-# ax.xaxis.set_minor_locator(tck.MultipleLocator(100))
-# ax.set_yticks(np.linspace(0.05,0.35,7),fontname="Source Code Pro")
-# ax.yaxis.set_minor_locator(tck.MultipleLocator(0.01))
-# ax.set_title("Average Reflectance of Non-Shaded Lunar South Pole",fontname="Times New Roman",fontsize=14)
-# =============================================================================
+fancy_spec_plot(x,y,std=std,
+                title="Average Reflectance of Non-Shaded Lunar South Pole",
+                ylabel= 'Reflectance', xlabel = 'Wavelength (\u03BCm)')
 
 #plt.savefig(r"D:/Data/Figures/Average_SPole_Reflectance.png")
 
@@ -691,7 +697,7 @@ def shade_correction(**kwargs):
     kwargs = {**defaultKwargs,**kwargs}
     R_bi = y[21:73]
     
-    R_meas,w = obj_list[0].plot_spec(0,10,plot_cspline_boxcar=True,box_size=5)
+    R_meas,w = obj_list[0].plot_spec(91,100,plot_cspine_boxcar=True,box_size=5)
     
     R_T = R_meas/R_bi
 
@@ -711,7 +717,7 @@ def shade_correction(**kwargs):
         ax.fill_between(x,f(x)-ferr(x),f(x)+ferr(x),color='gray',alpha=0.3)
         
         
-shade_correction(plot_avg=True,plot_cspline=True)
+shade_correction(plot_avg=True,plot_cspline=False)
 
 # =============================================================================
 # for obj in obj_list:
