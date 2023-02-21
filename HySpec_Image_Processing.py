@@ -121,8 +121,11 @@ class HDR_Image():
 
     # Plots image of a given wavelength or all three supplemental image, if using a .sup file as input
     def plt_img(self, wavelen, **kwargs):
-        defaultKwargs = {"All_Bands":True,"Norm":"All",'All_max':1,'All_min':0}
-        kwargs = {**defaultKwargs,**kwargs}
+        defaultKwargs = {"All_Bands": True,
+                         "Norm": "All", 'allMax': np.ones(52), 'allMin': np.zeros(52),
+                         "saveImage":False}
+        kwargs = {**defaultKwargs, **kwargs}
+        # For Supplemental HDR Files
         if self.hdr.bands.centers == None and kwargs["All_Bands"] == False:
             fig_big = plt.figure(figsize=(20, 20))
 
@@ -184,6 +187,7 @@ class HDR_Image():
                        photometric='rgb',
                        metadata=self.meta_data_dict)
 
+        # For regular hdr files
         elif self.hdr.bands.centers != None and kwargs["All_Bands"] == False:
             fig_big = plt.figure(figsize=(20, 20))
 
@@ -229,6 +233,7 @@ class HDR_Image():
                        photometric='minisblack',
                        metadata=self.meta_data_dict)
 
+        # To save a tiff with all bands saved
         elif kwargs["All_Bands"] == True:
             wvl = self.hdr.bands.centers
             band_index = []
@@ -236,47 +241,63 @@ class HDR_Image():
                 if w > 1000 and w < 2500:
                     band_index.append(index)
             rfl = self.hdr.read_bands(band_index)
-            
-            ##Normalizing
-            def norm(_max,_min):
-                norm_array = np.zeros(rfl.shape)
-                for i in range(0, rfl.shape[2]):
-                    band = rfl[:, :, i]
-                    band_norm = band-_min
-                    band_norm = band_norm
-                    band_norm = 255*band_norm/np.max(band_norm)
-                    band_norm = band_norm.astype('int32')
-                    #print (np.max(band_norm),np.min(band_norm))
-                    norm_array[:, :, i] = band_norm
-    
-                norm_array = norm_array.astype("int")
-            
-            
-            if kwargs.get('Norm') == 'Image':
-                
-                #print (norm_array.dtype)
-                
-            elif kwargs.get('Norm') == 'All':
-                
-            
+
+            # Normalizing
             
             try:
                 os.mkdir(r"D:/Data/Lunar_Ice_Images/" +
                          self.date+"_"+self.time+'/all')
             except:
                 pass
+  
+            if kwargs.get('Norm') == 'Image':
+                norm_array = np.zeros(rfl.shape)
+                for i in range(rfl.shape[2]):
+                    band = rfl[:, :, i]
+                    band_norm = band-np.min(band)
+                    band_norm = 255*band_norm/np.max(band_norm)
+                    norm_array[:, :, i] = band_norm
+                    
+                        
+                if kwargs.get('saveImage') == True:
+                    tf.imwrite(r"D:/Data/Lunar_Ice_Images/"+self.date+"_"+self.time+'/all/'+self.date+"_"+self.time+"_allBands.tif",
+                               norm_array,
+                               photometric='rgb',
+                               metadata=self.meta_data_dict)
+        
+                    print("TIFF File Written")
+                
+                print ('Normalized w.r.t each Image')
+                return norm_array
+                        
+            elif kwargs.get('Norm') == 'All':
+                norm_array = np.zeros(rfl.shape)
+                for i in range(0, rfl.shape[2]):
+                    band = rfl[:, :, i]
+                    band_norm = 255*(band-kwargs.get('allMin')[i])/kwargs.get('allMax')[i]
+                    band_norm = band_norm.astype('int32')
+                    #print (np.max(band_norm),np.min(band_norm))
+                    norm_array[:, :, i] = band_norm
 
-            tf.imwrite(r"D:/Data/Lunar_Ice_Images/"+self.date+"_"+self.time+'/all/'+self.date+"_"+self.time+"_allBands.tif",
-                       norm_array,
-                       photometric='rgb',
-                       metadata=self.meta_data_dict)
+                norm_array = norm_array.astype("int")
+                
+                if kwargs.get('saveImage') == True:
+                    tf.imwrite(r"D:/Data/Img_Supp_Files/"+self.date+"_"+self.time+"_allBands.tif",
+                               norm_array,
+                               photometric='rgb',
+                               metadata=self.meta_data_dict)
+                    print("TIFF File Written")
+                
+                print ('Normalized w.r.t all Images')
+                return norm_array
 
-            print("TIFF File Written")
 
     # Plots spectrum of a given x,y point of HDR Image
     def plot_spec(self, x, y, **kwargs):
-        defaultKwargs = {'plot_og':True, 'plot_boxcar':False, 'plot_cspline':False, 'plot_cspline_boxcar':False, 'box_size':"select",'savefig':False}
-        kwargs = {**defaultKwargs,**kwargs}
+        defaultKwargs = {'plot_og': True, 'plot_boxcar': False, 'plot_cspline': False, 'plot_cspline_boxcar': False,
+                         'box_size': "select", 'saveFig': False, "showPlot": True}
+        kwargs = {**defaultKwargs, **kwargs}
+
         if self.hdr.bands.centers != None:
             fig, ax = plt.subplots(1, 1)
 
@@ -289,19 +310,20 @@ class HDR_Image():
                     wvl_list.append(wavelength)
 
             if kwargs["plot_og"] == True:
-                ax.plot(wvl_list, spec_list, alpha=0.6,
-                        ls='--', label='Original Spectrum')
+                fancy_spec_plot(fig, ax, np.array(wvl_list), np.array(spec_list), title='Original Spectrum',
+                                ylabel='Reflectance', xlabel='Wavelength (\u03BCm)',
+                                line_color='red', line_style='--', label='Original Spectrum', ylim=(0.05, 0.2))
             elif kwargs["plot_og"] == False:
                 pass
             else:
                 raise Exception("Invalid kwarg for plot_og")
-                
 
             f1 = interp.CubicSpline(np.array(wvl_list), np.array(spec_list))
             x1 = np.linspace(min(wvl_list), max(wvl_list), 80)
 
             if kwargs["plot_cspline"] == True:
-                ax.plot(x1, f1(x1), '-', color="orange", label='Cubic Spline')
+                fancy_spec_plot(fig, ax, x1, f1(x1), line_style='solid', line_color='orange',
+                                title='Original Spectrum', label='Cubic Spline')
             elif kwargs["plot_cspline"] == False:
                 pass
             else:
@@ -314,14 +336,12 @@ class HDR_Image():
             else:
                 raise Exception("Invalid kwarg for box_size")
 
-
             avg_rfl, std_rfl, avg_wvl = spec_avg(spec_list, wvl_list, 5)
 
             if kwargs["plot_boxcar"] == True:
-                ax.plot(avg_wvl, avg_rfl, c='red',
-                        label=f'Boxcar({box_size} pts.)')
-                ax.fill_between(avg_wvl, np.array(avg_rfl)+np.array(std_rfl),
-                                np.array(avg_rfl)-np.array(std_rfl), alpha=0.1, color='red')
+                fancy_spec_plot(fig, ax, np.array(avg_wvl), np.array(avg_rfl), std=np.array(std_rfl),
+                                line_color='red', std_color='red', title='Original Spectrum', label='Boxcar Average')
+
             elif kwargs["plot_boxcar"] == False:
                 pass
             else:
@@ -332,18 +352,13 @@ class HDR_Image():
             x2 = np.linspace(min(wvl_list), max(wvl_list), 80)
 
             if kwargs["plot_cspline_boxcar"] == True:
-                ax.plot(x2, f2(x2), c='black', ls='dashdot',
-                        label=f'Boxcar({box_size} pts.)  & Cubic Spline')
-                ax.fill_between(x2, f2(x2)+f2_err(x2), f2(x2) -
-                                f2_err(x2), alpha=0.1, color='black')
+                fancy_spec_plot(fig, ax, x2, f2(x2), std=f2_err(x2), title='Original Spectrum',
+                                line_style='solid', line_color='k', std_color='gray',
+                                label='Cubic Spline', ylim=(0.05, 0.2))
             elif kwargs["plot_cspline_boxcar"] == False:
                 pass
             else:
                 raise Exception("Invalid kwarg for plot_cspline_boxcar")
-
-            # ax.plot(wvl,avg_rfl,c="red")
-            ax.set_xlabel('Wavelength (\u03BCm)')
-            ax.set_ylabel('Reflectance')
 
             ax.legend()
 
@@ -352,17 +367,30 @@ class HDR_Image():
                 if value == True:
                     name_str = name_str+key[key.find('_')+1:]+'_'
 
-            plt.savefig(
-                r"D:Data/Figures/"+self.hdr.filename[59:67]+"_"+str(x)+"_"+str(y)+name_str+".png")
+            if kwargs.get('saveFig') == True:
+                plt.savefig(
+                    r"D:Data/Figures/"+self.hdr.filename[59:67]+"_"+str(x)+"_"+str(y)+name_str+".png")
+            elif kwargs.get('saveFig') == False:
+                pass
+            else:
+                raise Exception('Keyword Error in savefig')
 
-            return spec_list,wvl_list
+            if kwargs.get('showPlot') == True:
+                pass
+            elif kwargs.get('showPlot') == False:
+                plt.close()
+
+            return np.array(spec_list), np.array(wvl_list)
 
         elif self.hdr.bands.centers == None:
             spec_list, wvl_list = [], []
             return spec_list, wvl_list
 
-    def good_spectra(self):
-        pixel_list = []
+    def good_spectra(self, **kwargs):
+        defaultKwargs = {"saveImage": False, 'showPlot': True}
+        kwargs = {**defaultKwargs, **kwargs}
+
+        #pixel_list = []
         test_pixel = self.hdr.read_pixel(np.random.randint(
             0, self.hdr.nrows), np.random.randint(0, self.hdr.ncols))
         nbands = len(test_pixel[test_pixel > -900])
@@ -373,10 +401,10 @@ class HDR_Image():
                 pixel = pixel[pixel > -999]
                 if np.average(pixel) > 0.05:
                     good_pixel_array[x, y] = pixel
-                    pixel_list.append(np.average(pixel))
+                    # pixel_list.append(np.average(pixel))
 
         bin_array = good_pixel_array
-        bin_array[bin_array > 0] = 1
+        bin_array[np.abs(bin_array) > 0] = 1
         bin_array = bin_array.astype('float32')
 
         # plt.imshow(bin_array[:,:,10],cmap='Spectral')
@@ -386,11 +414,23 @@ class HDR_Image():
         except:
             pass
 
-        tf.imwrite(r"D:Data\Lunar_Ice_Images\Shaded_Regions/"+self.date+"_"+self.time+"_raw.tif",
-                   bin_array[:, :, 10],
-                   photometric='minisblack',
-                   imagej=True,
-                   metadata=self.meta_data_dict)
+        if kwargs.get("saveImage") == True:
+            tf.imwrite(r"D:Data\Lunar_Ice_Images\Shaded_Regions/"+self.date+"_"+self.time+"_raw.tif",
+                       bin_array[:, :, 0],
+                       photometric='minisblack',
+                       imagej=True,
+                       metadata=self.meta_data_dict)
+            print('Image Saved to Shaded_Regions')
+        elif kwargs.get('saveImage') == False:
+            pass
+        else:
+            raise Exception(
+                "Keyword Argument Error in good_spectra, saveImage")
+
+        if kwargs.get('showPlot') == True:
+            plt.imshow(bin_array[:, :, 0], cmap='Spectral')
+        elif kwargs.get('showPlot') == False:
+            plt.close()
 
         good_pix = np.count_nonzero(bin_array[:, :, 10])
         total_pix = self.hdr.nrows*self.hdr.ncols
@@ -479,12 +519,15 @@ class HDR_Image():
                 diff = self.rfl_cubfit[n]-self.rfl_cubfit[n+1]
                 diff_list.append(diff)
                 if n > 2 and diff < 0 and diff_list[-2] > 0:
-                    # (diff,diff_list[-2])
-                    #print (f"Differential: {diff} \nWavelength: {self.wvl_cubfit[n]} \nReflectance: {self.rfl_cubfit[n]} \n")
-                    #ax.vlines(self.wvl_cubfit[n],min(self.rfl_og),max(self.rfl_og),color='k',ls='dashdot',label=f'{self.wvl_cubfit[n]/1000:.3f} \u03BCm')
+                    (diff, diff_list[-2])
+                    print(
+                        f"Differential: {diff} \nWavelength: {self.wvl_cubfit[n]} \nReflectance: {self.rfl_cubfit[n]} \n")
+                    ax.vlines(self.wvl_cubfit[n], min(self.rfl_og), max(self.rfl_og), color='k', ls='dashdot',
+                              label=f'{self.wvl_cubfit[n]/1000:.3f} \u03BCm')
+                    ax.plot(self.wvl_cubfit, self.rfl_cubfit)
                     wvl_min_list.append(self.wvl_cubfit[n])
 
-        # ax.plot(self.wvl_og,self.rfl_og,color='blue',ls='--',alpha=0.2)
+        ax.plot(self.wvl_og, self.rfl_og, color='blue', ls='--', alpha=0.2)
 
         num = 0
         w_list = []
@@ -510,10 +553,10 @@ class HDR_Image():
                         color='blue', ls='--', alpha=0.2)
                 ax.legend(title="Absorption Minima")
 
-        if num < 3:
-            plt.close()
+    def get_average_rfl(self, true_arr, **kwargs):
+        defaultKwargs = {'avg_by_img': False}
+        kwargs = {**defaultKwargs, **kwargs}
 
-    def get_average_rfl(self, true_arr,**kwargs):
         rfl_avg = []
         rfl_std = []
         wvl_avg = []
@@ -521,55 +564,34 @@ class HDR_Image():
         wvl = self.hdr.bands.centers
         wlength = []
         for i in wvl:
-            if i>1000 and i<2500:
+            if i > 1000 and i < 2500:
                 wlength.append(i)
 
         arr = true_arr == 1
 
-        
-        avg_rfl_arr = np.zeros((len(wvl[0:-2]), np.count_nonzero(true_arr == 1)))
+        avg_rfl_arr = np.zeros(
+            (len(wvl[0:-2]), np.count_nonzero(true_arr == 1)))
         for i in range(0, len(wvl[0:-2])):
             n = 0
             for x, y in zip(np.where(arr == True)[0], np.where(arr == True)[1]):
-                avg_rfl_arr[i,n] = bands[x,y,i]
-                n +=1
-        
-        for i in range(0,avg_rfl_arr.shape[0]):
-            rfl_avg.append(np.average(avg_rfl_arr[i,:]))
-            rfl_std.append(np.std(avg_rfl_arr[i,:]))
-            
+                avg_rfl_arr[i, n] = bands[x, y, i]
+                n += 1
+
+        for i in range(0, avg_rfl_arr.shape[0]):
+            rfl_avg.append(np.average(avg_rfl_arr[i, :]))
+            rfl_std.append(np.std(avg_rfl_arr[i, :]))
+
         rfl_avg = np.array(rfl_avg)
         rfl_std = np.array(rfl_std)
-        
+
         if kwargs["avg_by_img"] == True:
-            return wvl[0:-2],rfl_avg,rfl_std
+            return wvl[0:-2], rfl_avg, rfl_std
         elif kwargs["avg_by_img"] == False:
-            return wvl[0:-2],avg_rfl_arr
-           
-# =============================================================================
-#         plt.fill_between(wvl[0:-2],rfl_avg-rfl_std,rfl_avg+rfl_std,color='gray',alpha=0.3)
-#         plt.plot(wvl[0:-2],rfl_avg,color='red',linewidth=0.8)
-#         plt.xlim([min(wlength),max(wlength)])
-#         plt.ylabel("Reflectance",fontname="Times New Roman",fontsize=12)
-#         plt.xlabel("Wavelength",fontname="Times New Roman",fontsize=12)
-#         plt.xticks(fontname="Source Code Pro")
-#         plt.yticks(fontname="Source Code Pro")
-#         plt.title("Average Reflectance",fontname="Times New Roman",fontsize=18)
-# =============================================================================
-        
-
-# =============================================================================
-#         for i,w in zip(range(0,len(bands[0,0,:])),wvl):
-#             if w>1000 and w<2500:
-#                 rfl_avg.append(np.average(bands[:,:,i]))
-#                 wvl_avg.append(w)
-# =============================================================================
-
-        # plt.plot(wvl_avg,rfl_avg)
+            return wvl[0:-2], avg_rfl_arr
 
 
 if 'hdr_file_list' in locals():
-    print('Necessary Variables are Defined')
+    print('HDR File List is Defined')
 else:
     from M3_UnZip import *
     hdr_file_list, hdr_files_path = M3_unzip(
@@ -579,161 +601,206 @@ obj_list = []
 for file in hdr_file_list:
     if file.find('rfl') > -1:
         obj_list.append(HDR_Image(hdr_files_path+'/'+file[0:-4]+'/'+file))
+        
+def get_data_fromsave():
+    # Get all pixel array from .npy file
+    big_arr = np.load("D:Data/big_array.npy")
+    
+    # Get arr_list with arrays saved
+    arr_list = []
+    for file in os.listdir(r"D:/Data/Shadow_Arrays"):
+        df = pd.read_csv(os.path.join('D:/Data/Shadow_Arrays', file))
+        arr = df.to_numpy()
+        arr = np.delete(arr, 0, axis=1)
+        arr_list.append(arr)
+        
+    return big_arr,arr_list
+        
+def get_data_nosave():
+    arr_list = []
+    for obj in obj_list:
+        arr = obj.good_spectra(saveImage=True)
+        arr_list.append(arr)
 
+    data_arr = np.zeros((14, 3, len(obj_list[0].hdr.bands.centers)-2))
+    n = 0
+    for obj, arr in zip(obj_list, arr_list):
+        x, avg, std = obj.get_average_rfl(arr)
+        data_arr[n, :] = [x, avg, std]
+        print('Data Added')
+        n += 1
+
+    def avg_by_img(data_arr):
+        wav_num = []
+        for i in obj_list[0].hdr.bands.centers:
+            if i > 1000 and i < 2500:
+                wav_num.append(i)
+
+        rfl_total_avglist = np.zeros((14, 83))
+        rfl_total_stdlist = np.zeros((14, 83))
+
+        for i in range(0, len(data_arr[:, 0, 0])):
+
+            x, y, std = data_arr[i, 0, :], data_arr[i, 1, :], data_arr[i, 2, :]
+            rfl_total_avglist[i, :] = y
+            rfl_total_stdlist[i, :] = std
+
+        num_bands = len(rfl_total_avglist[0, :])
+        y = np.zeros((num_bands))
+        std = np.zeros((num_bands))
+        for i in range(0, num_bands):
+            y[i] = np.average(rfl_total_avglist[:, i])
+            std[i] = np.sqrt(np.sum(rfl_total_stdlist[:, i]**2)
+                             )/len(rfl_total_stdlist[:, i])
+
+        fancy_spec_plot(x, y, std=std,
+                        title="Average Reflectance of Non-Shaded Lunar South Pole",
+                        ylabel='Reflectance', xlabel='Wavelength (\u03BCm)')
+    # avg_by_img(data_arr)
+
+    def avg_by_pixel(arr_list):
+        rfl_by_pix_arr = np.zeros((83, 1))
+        n = 0
+        for obj, arr in zip(obj_list, arr_list):
+            x, all_arr = obj.get_average_rfl(arr, avg_by_img=False)
+            rfl_by_pix_arr = np.concatenate([rfl_by_pix_arr, all_arr], axis=1)
+            print(f'Array Added. It is now {rfl_by_pix_arr.shape} big')
+            n += 1
+
+        return rfl_by_pix_arr
+    big_arr = avg_by_pixel(arr_list)
+    big_arr = np.delete(big_arr, 0, 1)
+    print("Big Array Filled")
+        
+if 'big_arr' in locals() and 'arr_list' in locals():
+    print ('Pixel Arrays are defined from files')
+else:
+    try:
+        print ('Defining Pixel Arrays')
+        big_arr,arr_list = get_data_fromsave()
+    except:
+        raise Exception('Error: Pixel Arrays may not be saved! Run get_data_nosave()')
+
+
+##Gets arr_list and big_arr without save
+
+# get_data_nosave()
+
+##Get Date and Time of each stamp
 # =============================================================================
 # for obj in obj_list:
 #     obj.datetime()
 # =============================================================================
 
-# =============================================================================
-# for obj in obj_list:
-#     spec1,wv1 = obj.plot_spec(90,103)
-# =============================================================================
-# obj_list[0].wavelengths()
 
-# =============================================================================
-# pixels = 1
-# for x in range(1015,obj_list[0].hdr.nrows):
-#     for y in range(302,obj_list[0].hdr.ncols):
-#         spec,wvl = obj_list[0].plot_spec(x,y,filter_img=True)
-#         print (f'{pixels} out of {obj_list[0].hdr.nrows*obj_list[0].hdr.ncols} pixels processed')
-#         pixels += 1
-# =============================================================================
-
-R_meas,x_vals = obj_list[0].plot_spec(91,100,plot_og=True,plot_boxcar=False,plot_cspline=False,plot_cspline_boxcar=False,box_size=5)
-
+##Get Minima for a set amount of points
 # =============================================================================
 # x_pix = range(0,obj_list[0].hdr.nrows)
 # y_pix = range(0,obj_list[0].hdr.ncols)
 #
-# for x in x_pix[80:100]:
-#     for y in y_pix[80:100]:
+# for x in x_pix[91:92]:
+#     for y in y_pix[100:101]:
 #         print (x,y)
 #         obj_list[0].H2O_p1(x,y)
 #         obj_list[0].get_minima(x,y)
 # =============================================================================
 
-#true_arr = obj_list[0].good_spectra()
 
-##Get arr_list
-# =============================================================================
-# arr_list = []
-# for obj in obj_list:
-#     arr = obj.good_spectra()
-#     arr_list.append(arr)
-# =============================================================================
-
-
-# =============================================================================
-# data_arr = np.zeros((14,3,len(obj_list[0].hdr.bands.centers)-2))
-# n = 0
-# for obj,arr in zip(obj_list,arr_list):
-#     x,avg,std = obj.get_average_rfl(arr)
-#     data_arr[n,:] = [x,avg,std]
-#     print ('Data Added')
-#     n+=1
-# =============================================================================
-
-def avg_by_img(data_arr):
-    wav_num = []
-    for i in obj_list[0].hdr.bands.centers:
-        if i>1000 and i<2500:
-            wav_num.append(i)
+##Get average reflectance data
+def get_avg_rfl_data(plot_data=False):
+    wvl, rfl_all_pixels = obj_list[0].get_average_rfl(arr_list[0])
+    rfl_avgSP = np.zeros((83))
+    rfl_stdSP = np.zeros((83))
+    for count, band in enumerate(rfl_all_pixels):
+        rfl_avgSP[count] = np.average(band)
+        rfl_stdSP[count] = np.std(band)
     
-    rfl_total_avglist = np.zeros((14,83))
-    rfl_total_stdlist = np.zeros((14,83))
-    
-    for i in range(0,len(data_arr[:,0,0])):
+    # Plot Average Reflectance Data
+    if plot_data == True:
+        fig,ax = plt.subplots(1,1)
+        fancy_spec_plot(fig,ax,wvl[21:73],rfl_avgSP[21:73],std=rfl_stdSP[21:73],
+                        title="Average Reflectance of Non-Shaded Lunar South Pole",
+                        ylabel= 'Reflectance', xlabel = 'Wavelength (\u03BCm)')
         
-        x,y,std = data_arr[i,0,:],data_arr[i,1,:],data_arr[i,2,:]
-        rfl_total_avglist[i,:] = y
-        rfl_total_stdlist[i,:] = std
-    
-    num_bands = len(rfl_total_avglist[0,:])
-    y = np.zeros((num_bands))
-    std = np.zeros((num_bands))
-    for i in range(0,num_bands):
-        y[i] = np.average(rfl_total_avglist[:,i])
-        std[i] = np.sqrt(np.sum(rfl_total_stdlist[:,i]**2))/len(rfl_total_stdlist[:,i])
-        
-    fancy_spec_plot(x,y,std=std,
-                    title="Average Reflectance of Non-Shaded Lunar South Pole",
-                    ylabel= 'Reflectance', xlabel = 'Wavelength (\u03BCm)')
-#avg_by_img(data_arr)
+get_avg_rfl_data(plot_data=True)
 
-def avg_by_pixel(arr_list):
-    rfl_by_pix_arr = np.zeros((83,1))
-    n = 0
-    for obj,arr in zip(obj_list,arr_list): 
-        x,all_arr = obj.get_average_rfl(arr,avg_by_img=False)
-        rfl_by_pix_arr = np.concatenate([rfl_by_pix_arr,all_arr],axis=1)
-        print (f'Array Added. It is now {rfl_by_pix_arr.shape} big')
-        n+=1
-    
-    return rfl_by_pix_arr
-    
-# =============================================================================
-# big_arr = avg_by_pixel(arr_list)
-# big_arr = np.delete(big_arr,0,1)
-# print ("Big Array Filled")
-# =============================================================================
 
-y = np.zeros((83))
-x = obj_list[0].hdr.bands.centers[2:]
-std = np.zeros((83))
-for i in range(0,len(big_arr[:,0])):
-    y[i] = np.average(big_arr[i,:])
-    std[i] = np.std(big_arr[i,:])
 
-##Plot Average Reflectance Data
-fancy_spec_plot(x,y,std=std,
-                title="Average Reflectance of Non-Shaded Lunar South Pole",
-                ylabel= 'Reflectance', xlabel = 'Wavelength (\u03BCm)')
 
-#plt.savefig(r"D:/Data/Figures/Average_SPole_Reflectance.png")
+# plt.savefig(r"D:/Data/Figures/Average_SPole_Reflectance.png")
 
-def shade_correction(**kwargs):
-    defaultKwargs = {'plot_og':True,'plot_avg':False,'plot_cspline':False}
-    kwargs = {**defaultKwargs,**kwargs}
-    R_bi = y[21:73]
-    
-    R_meas,w = obj_list[0].plot_spec(91,100,plot_cspine_boxcar=True,box_size=5)
-    
+
+def get_single_minima(wvl, rfl):
+    diff_list = []
+    wvl_min_list = []
+    for n in range(0, len(rfl)):
+        if n < len(rfl)-1:
+            diff = rfl[n]-rfl[n+1]
+            diff_list.append(diff)
+            if n > 2 and diff < 0 and diff_list[-2] > 0:
+                (diff, diff_list[-2])
+                print(
+                    f"Differential: {diff} \nWavelength: {wvl[n]} \nReflectance: {rfl[n]} \n")
+                wvl_min_list.append(wvl[n])
+    return wvl_min_list
+
+
+def shade_correction(x_pt, y_pt, **kwargs):
+    defaultKwargs = {'plot_og': True, 'plot_avg': False,
+                     'plot_cspline': False, 'plot_minima': True, 'saveImage': False}
+    kwargs = {**defaultKwargs, **kwargs}
+
+    R_bi = rfl_avgSP[21:73]
+
+    #R_meas,w = obj_list[0].plot_spec(0,10,plot_cspline_boxcar=True,box_size=5)
+    R_meas, w = obj_list[0].plot_spec(
+        x_pt, y_pt, plot_cspline_boxcar=True, box_size=5)
+
     R_T = R_meas/R_bi
 
-    avg_rfl,std_rfl,avg_wvl = spec_avg(R_T,w,5)
+    avg_rfl, std_rfl, avg_wvl = spec_avg(R_T, w, 5)
     f = interp.CubicSpline(np.array(avg_wvl), np.array(avg_rfl))
-    ferr = interp.CubicSpline(np.array(avg_wvl),np.array(std_rfl))
-    x = np.linspace(min(w),max(w),100)
-    
-    fig,ax = plt.subplots(1,1)
-    if kwargs['plot_og'] == True:  
-        ax.plot(w,R_T,ls='dashdot')
+    ferr = interp.CubicSpline(np.array(avg_wvl), np.array(std_rfl))
+    x = np.linspace(min(w), max(w), 100)
+
+    wvl_min_list = get_single_minima(x, f(x))
+    print(wvl_min_list)
+
+    fig, ax = plt.subplots(1, 1)
+    if kwargs['plot_og'] == True:
+        fancy_spec_plot(fig, ax, w, R_T, line_style='dashdot', title="Shadow-Corrected Spectrum",
+                        ylabel='Reflectance', xlabel='Wavelength (\u03BCm)', label='Original')
     if kwargs['plot_avg'] == True:
-        ax.plot(avg_wvl,avg_rfl,ls='--',c='red')
-        ax.fill_between(avg_wvl,np.array(avg_rfl)-np.array(std_rfl),np.array(avg_rfl)+np.array(std_rfl),color='red',alpha=0.3)
+        fancy_spec_plot(fig, ax, np.array(avg_wvl), np.array(avg_rfl), std=np.array(std_rfl),
+                        line_style='--', line_color='red', std_color='red', title='Shadow-Corrected Spectrum', label='Boxcar Average')
     if kwargs['plot_cspline'] == True:
-        ax.plot(x,f(x),c='k')
-        ax.fill_between(x,f(x)-ferr(x),f(x)+ferr(x),color='gray',alpha=0.3)
-        
-        
-shade_correction(plot_avg=True,plot_cspline=False)
+        fancy_spec_plot(fig, ax, x, f(x), std=ferr(x), title="Shadow-Corrected Spectrum",
+                        line_style='solid', line_color='k', std_color='gray', label='Cubic Spline')
+    if kwargs['plot_minima'] == True:
+        for _min in wvl_min_list:
+            ax.vlines(_min, min(f(x)), max(f(x)), ls='--',
+                      color='k', label=str(round(_min, 1)))
 
-# =============================================================================
-# for obj in obj_list:
-#     obj.good_spectra()
-# =============================================================================
-# obj_list[0].plt_img(1209.57)
+    ax.legend()
 
-# =============================================================================
-# for obj in obj_list:
-#     obj.plt_img(1289.41)
-# =============================================================================
+    if kwargs.get('saveImage') == True:
+        plt.savefig(r"D:Data/Figures/"+str(x_pt)+'_' +
+                    str(y_pt)+"_shadow_correction.png")
 
-# =============================================================================
-# for obj in obj_list:
-#     obj.plt_img(1289.41,All_Bands=True)
-# =============================================================================
+# shade_correction(90,91,plot_avg=False,plot_cspline=True,saveImage=True)
+
+def normalize_all_images():
+    all_stats = np.zeros((52,2))
+    for num,row in enumerate(big_arr[21:73]):
+        all_stats[num,0] = min(row)
+        all_stats[num,1] = max(row)
+    
+    norm_img_list = []
+    for count,obj in enumerate(obj_list):
+        norm_img = obj.plt_img(1449.11,All_Bands=True,Norm='All',allMax=all_stats[:,1],allMin=all_stats[:,0],saveImage=False)
+        norm_img_list.append(norm_img) 
+        print (f'Image {count+1} out of {len(obj_list)} complete in {time.time()-start} seconds')
+#normalize_all_images()
 
 end = time.time()
 runtime = end-start

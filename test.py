@@ -41,11 +41,18 @@ import numpy as np
 #         del self._value
 # =============================================================================
 
-def func(**kwargs):
-    defaultKwargs = {'arg1':3,'arg2':4,'arg3':5}
-    kwargs = {**defaultKwargs,**kwargs}
-    print (kwargs["arg1"])
-    print (kwargs["arg2"])
-    print (kwargs["arg3"])
-    
-func(arg2=27)
+# =============================================================================
+# def func(**kwargs):
+#     defaultKwargs = {'arg1':3,'arg2':4,'arg3':5}
+#     kwargs = {**defaultKwargs,**kwargs}
+#     print (kwargs["arg1"])
+#     print (kwargs["arg2"])
+#     print (kwargs["arg3"])
+#     
+# func(arg2=27)
+# =============================================================================
+
+def func():
+    if 'big_arr' not in locals():
+        print ('no')
+func()
