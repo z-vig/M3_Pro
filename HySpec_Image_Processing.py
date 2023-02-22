@@ -27,6 +27,7 @@ import matplotlib.ticker as tck
 import numpy as np
 import time
 from fancy_spec_plot import fancy_spec_plot
+from moving_avg import moving_avg
 start = time.time()
 
 # Importing Necessary Libraries
@@ -290,12 +291,16 @@ class HDR_Image():
                 
                 print ('Normalized w.r.t all Images')
                 return norm_array
+            
+            elif kwargs.get('Norm') == 'None':
+                return rfl
 
 
     # Plots spectrum of a given x,y point of HDR Image
     def plot_spec(self, x, y, **kwargs):
         defaultKwargs = {'plot_og': True, 'plot_boxcar': False, 'plot_cspline': False, 'plot_cspline_boxcar': False,
-                         'box_size': "select", 'saveFig': False, "showPlot": True}
+                         'box_size': "select", 'plot_movingAvg':False, 'movingAvg_size':'select','saveFig': False, "showPlot": True,
+                         'plot_movingAvg_cspline':False}
         kwargs = {**defaultKwargs, **kwargs}
 
         if self.hdr.bands.centers != None:
@@ -309,6 +314,7 @@ class HDR_Image():
                     spec_list.append(data_val)
                     wvl_list.append(wavelength)
 
+            ####Plotting Original####
             if kwargs["plot_og"] == True:
                 fancy_spec_plot(fig, ax, np.array(wvl_list), np.array(spec_list), title='Original Spectrum',
                                 ylabel='Reflectance', xlabel='Wavelength (\u03BCm)',
@@ -317,11 +323,12 @@ class HDR_Image():
                 pass
             else:
                 raise Exception("Invalid kwarg for plot_og")
-
-            f1 = interp.CubicSpline(np.array(wvl_list), np.array(spec_list))
-            x1 = np.linspace(min(wvl_list), max(wvl_list), 80)
-
+                
+                
+            ####Plotting Cubic Spline without Boxcar Average####
             if kwargs["plot_cspline"] == True:
+                f1 = interp.CubicSpline(np.array(wvl_list), np.array(spec_list))
+                x1 = np.linspace(min(wvl_list), max(wvl_list), 80)
                 fancy_spec_plot(fig, ax, x1, f1(x1), line_style='solid', line_color='orange',
                                 title='Original Spectrum', label='Cubic Spline')
             elif kwargs["plot_cspline"] == False:
@@ -329,29 +336,35 @@ class HDR_Image():
             else:
                 raise Exception('Invalid kwarg for plot_cspline')
 
-            if kwargs["box_size"] == "select":
-                box_size = int(input("Box Size: "))
-            elif type(kwargs['box_size']) == int:
-                box_size = kwargs["box_size"]
-            else:
-                raise Exception("Invalid kwarg for box_size")
-
-            avg_rfl, std_rfl, avg_wvl = spec_avg(spec_list, wvl_list, 5)
-
+            ####Plotting Boxcar Average####
             if kwargs["plot_boxcar"] == True:
+                if kwargs["box_size"] == "select":
+                    box_size = int(input("Box Size: "))
+                elif type(kwargs['box_size']) == int:
+                    box_size = kwargs["box_size"]
+                else:
+                    raise Exception("Invalid kwarg for box_size")
+                avg_rfl, std_rfl, avg_wvl = spec_avg(spec_list, wvl_list, box_size)
                 fancy_spec_plot(fig, ax, np.array(avg_wvl), np.array(avg_rfl), std=np.array(std_rfl),
                                 line_color='red', std_color='red', title='Original Spectrum', label='Boxcar Average')
-
             elif kwargs["plot_boxcar"] == False:
                 pass
             else:
                 raise Exception("Invalid kwarg for plot_boxcar")
-
-            f2 = interp.CubicSpline(np.array(avg_wvl), np.array(avg_rfl))
-            f2_err = interp.CubicSpline(np.array(avg_wvl), np.array(std_rfl))
-            x2 = np.linspace(min(wvl_list), max(wvl_list), 80)
-
+                
+                
+            ####Plotting Cubic Spline Fit onto Boxcar Average####
             if kwargs["plot_cspline_boxcar"] == True:
+                if kwargs["box_size"] == "select":
+                    box_size = int(input("Box Size: "))
+                elif type(kwargs['box_size']) == int:
+                    box_size = kwargs["box_size"]
+                else:
+                    raise Exception("Invalid kwarg for box_size")
+                avg_rfl, std_rfl, avg_wvl = spec_avg(spec_list, wvl_list, box_size)
+                f2 = interp.CubicSpline(np.array(avg_wvl), np.array(avg_rfl))
+                f2_err = interp.CubicSpline(np.array(avg_wvl), np.array(std_rfl))
+                x2 = np.linspace(min(wvl_list), max(wvl_list), 80)
                 fancy_spec_plot(fig, ax, x2, f2(x2), std=f2_err(x2), title='Original Spectrum',
                                 line_style='solid', line_color='k', std_color='gray',
                                 label='Cubic Spline', ylim=(0.05, 0.2))
@@ -359,7 +372,31 @@ class HDR_Image():
                 pass
             else:
                 raise Exception("Invalid kwarg for plot_cspline_boxcar")
-
+                
+                
+                
+            ####Plotting Moving Average####
+            if kwargs.get('plot_movingAvg') == True:
+                if kwargs.get('movingAvg_size') == 'select':
+                    length = int(input('movingAvg_size: '))
+                elif type(kwargs.get('movingAvg_size')) == int:
+                    length = kwargs.get('movingAvg_size')
+                conv_x,conv_y = moving_avg(np.array(wvl_list),np.array(spec_list),length)
+                fancy_spec_plot(fig,ax,conv_x,conv_y,title='Original Spectrum',line_color='purple',label='Moving Average')
+                
+                
+            ####Plotting Cubic Spline on Moving Average####
+            if kwargs.get('plot_movingAvg_cspline') == True:
+                if kwargs.get('movingAvg_size') == 'select':
+                    length = int(input('movingAvg_size: '))
+                elif type(kwargs.get('movingAvg_size')) == int:
+                    length = kwargs.get('movingAvg_size')
+                conv_x,conv_y = moving_avg(np.array(wvl_list),np.array(spec_list),length)
+                f3 = interp.CubicSpline(conv_x,conv_y)
+                x3 = np.linspace(min(conv_x),max(conv_x),80)
+                fancy_spec_plot(fig,ax,x3,f3(x3),title='Original Spectrum',line_color='orange',
+                                label = 'Cubic Spline (Moving Avg)')
+            
             ax.legend()
 
             name_str = "_"
@@ -678,6 +715,7 @@ else:
     try:
         print ('Defining Pixel Arrays')
         big_arr,arr_list = get_data_fromsave()
+        print ('Pixel Arrays Defined')
     except:
         raise Exception('Error: Pixel Arrays may not be saved! Run get_data_nosave()')
 
@@ -693,11 +731,12 @@ else:
 # =============================================================================
 
 
-##Get Minima for a set amount of points
+##Get Minima for a set amount of point
 # =============================================================================
+# print ('Noise Reduction')
 # x_pix = range(0,obj_list[0].hdr.nrows)
 # y_pix = range(0,obj_list[0].hdr.ncols)
-#
+# 
 # for x in x_pix[91:92]:
 #     for y in y_pix[100:101]:
 #         print (x,y)
@@ -721,8 +760,9 @@ def get_avg_rfl_data(plot_data=False):
         fancy_spec_plot(fig,ax,wvl[21:73],rfl_avgSP[21:73],std=rfl_stdSP[21:73],
                         title="Average Reflectance of Non-Shaded Lunar South Pole",
                         ylabel= 'Reflectance', xlabel = 'Wavelength (\u03BCm)')
+    return wvl,rfl_avgSP,rfl_stdSP
         
-get_avg_rfl_data(plot_data=True)
+#wvl, rfl_avgSP, rfl_stdSP = get_avg_rfl_data(plot_data=False)
 
 
 
@@ -739,22 +779,20 @@ def get_single_minima(wvl, rfl):
             diff_list.append(diff)
             if n > 2 and diff < 0 and diff_list[-2] > 0:
                 (diff, diff_list[-2])
-                print(
-                    f"Differential: {diff} \nWavelength: {wvl[n]} \nReflectance: {rfl[n]} \n")
+                #print(f"Differential: {diff} \nWavelength: {wvl[n]} \nReflectance: {rfl[n]} \n")
                 wvl_min_list.append(wvl[n])
     return wvl_min_list
 
 
 def shade_correction(x_pt, y_pt, **kwargs):
-    defaultKwargs = {'plot_og': True, 'plot_avg': False,
-                     'plot_cspline': False, 'plot_minima': True, 'saveImage': False}
+    defaultKwargs = {'plotImage':True,'plot_og': True, 'plot_avg': False,
+                     'plot_cspline': False, 'plot_minima': True, 'saveImage': False,'returnShadeCorrection':False}
     kwargs = {**defaultKwargs, **kwargs}
 
     R_bi = rfl_avgSP[21:73]
 
     #R_meas,w = obj_list[0].plot_spec(0,10,plot_cspline_boxcar=True,box_size=5)
-    R_meas, w = obj_list[0].plot_spec(
-        x_pt, y_pt, plot_cspline_boxcar=True, box_size=5)
+    R_meas, w = obj_list[0].plot_spec(x_pt, y_pt, plot_cspline_boxcar=True, box_size=5,showPlot=False)
 
     R_T = R_meas/R_bi
 
@@ -764,30 +802,51 @@ def shade_correction(x_pt, y_pt, **kwargs):
     x = np.linspace(min(w), max(w), 100)
 
     wvl_min_list = get_single_minima(x, f(x))
-    print(wvl_min_list)
-
-    fig, ax = plt.subplots(1, 1)
-    if kwargs['plot_og'] == True:
-        fancy_spec_plot(fig, ax, w, R_T, line_style='dashdot', title="Shadow-Corrected Spectrum",
-                        ylabel='Reflectance', xlabel='Wavelength (\u03BCm)', label='Original')
-    if kwargs['plot_avg'] == True:
-        fancy_spec_plot(fig, ax, np.array(avg_wvl), np.array(avg_rfl), std=np.array(std_rfl),
-                        line_style='--', line_color='red', std_color='red', title='Shadow-Corrected Spectrum', label='Boxcar Average')
-    if kwargs['plot_cspline'] == True:
-        fancy_spec_plot(fig, ax, x, f(x), std=ferr(x), title="Shadow-Corrected Spectrum",
-                        line_style='solid', line_color='k', std_color='gray', label='Cubic Spline')
-    if kwargs['plot_minima'] == True:
-        for _min in wvl_min_list:
-            ax.vlines(_min, min(f(x)), max(f(x)), ls='--',
-                      color='k', label=str(round(_min, 1)))
-
-    ax.legend()
+    
+    if kwargs.get('returnShadeCorrection') == True:
+        return f(x)
+    #print(wvl_min_list)
+    
+    if kwargs.get('plotImage') == True:
+        fig, ax = plt.subplots(1, 1)
+        if kwargs['plot_og'] == True:
+            fancy_spec_plot(fig, ax, w, R_T, line_style='dashdot', title="Shadow-Corrected Spectrum",
+                            ylabel='Reflectance', xlabel='Wavelength (\u03BCm)', label='Original')
+        if kwargs['plot_avg'] == True:
+            fancy_spec_plot(fig, ax, np.array(avg_wvl), np.array(avg_rfl), std=np.array(std_rfl),
+                            line_style='--', line_color='red', std_color='red', title='Shadow-Corrected Spectrum', label='Boxcar Average')
+        if kwargs['plot_cspline'] == True:
+            fancy_spec_plot(fig, ax, x, f(x), std=ferr(x), title="Shadow-Corrected Spectrum",
+                            line_style='solid', line_color='k', std_color='gray', label='Cubic Spline')
+        if kwargs['plot_minima'] == True:
+            for _min in wvl_min_list:
+                ax.vlines(_min, min(f(x)), max(f(x)), ls='--',
+                          color='k', label=str(round(_min, 1)))
+                
+        ax.legend()
+    else:
+        pass
+        
 
     if kwargs.get('saveImage') == True:
         plt.savefig(r"D:Data/Figures/"+str(x_pt)+'_' +
                     str(y_pt)+"_shadow_correction.png")
+        
+    return f(x)
 
-# shade_correction(90,91,plot_avg=False,plot_cspline=True,saveImage=True)
+print (f'Shadow Correction started at {time.time()-start}')
+orig_img = obj_list[0].plt_img(1449.11, All_Bands=True,Norm='None',saveImage=False)
+dark_img = arr_list[0]
+total_dark = np.count_nonzero(dark_img==0)
+n=0
+for x,y in zip(np.where(dark_img==0)[0],np.where(dark_img==0)[1]):
+    shade_correction(x,y,returnShadeCorrection=True)
+    print (f'{n} out of {total_dark} ({n/total_dark:.0%})')
+    n+=1
+
+
+#pt = shade_correction(91,100,plot_avg=False,plot_cspline=True,saveImage=False,plotImage=False)
+
 
 def normalize_all_images():
     all_stats = np.zeros((52,2))

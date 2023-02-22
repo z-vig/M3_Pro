@@ -1,6 +1,9 @@
 import spectral as sp
 import matplotlib.pyplot as plt
 import numpy as np
+import math
+import scipy.stats as ss
+import scipy.signal as sig
 
 # =============================================================================
 # hdr = sp.envi.open(r"D:\Data\20230209T095534013597\extracted_files\hdr_files\m3g20090417t193320_v01_rfl\m3g20090417t193320_v01_rfl.hdr")
@@ -52,7 +55,45 @@ import numpy as np
 # func(arg2=27)
 # =============================================================================
 
-def func():
-    if 'big_arr' not in locals():
-        print ('no')
-func()
+# =============================================================================
+# x = np.linspace(0,11,20)
+# y = sig.square(x,0.5)
+# 
+# def moving_avg(xdata,ydata,length):
+#     def norm(x,center):
+#         return math.e**((-(x-center)**2)/2)
+#     if length%2 == 0:
+#         length += 1
+#     moving_avg_len = length
+#     
+#     moving_avg = np.arange(0,moving_avg_len)
+#     moving_avg = norm(moving_avg,np.median(moving_avg))
+#     moving_avg = moving_avg/moving_avg.sum()
+#     print (f'Convolution Array: {moving_avg} of length {length}')
+#     
+#     #moving_avg = [1/moving_avg_len]*moving_avg_len
+#     
+#     
+#     #moving_avg = [0.1,0.2,0.4,0.2,0.1]
+#     
+#     
+#     fig,ax = plt.subplots(1,1)
+#     ax.plot(xdata,ydata,label='original')
+#     ex_val = int(len(moving_avg)//2)
+#     
+#     conv = np.convolve(moving_avg,ydata)
+#     conv = conv[ex_val:len(conv)-ex_val]
+#     
+#     ax.plot(xdata,conv,label='moving avg')
+#     
+#     ax.legend()
+# 
+# for i in np.arange(1,20,2):
+#     moving_avg(x,y,i)
+# ============================================================================
+
+def test(x):
+    for i in x:
+        return i
+    
+test([1,2,3])
