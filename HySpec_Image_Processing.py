@@ -1,11 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-Created on Wed Feb  1 10:34:52 2023
-
-@author: zacha
+Welcome to HySpecPy! 
 """
-# Timing the program
-from sympy import *
+# Importing Necessary Modules
 from spec_average import spec_avg
 from scipy import interpolate as interp
 import tifffile as tf
@@ -25,35 +22,13 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as tck
 import numpy as np
 import time
+
+
 from fancy_spec_plot import fancy_spec_plot
 from moving_avg import moving_avg
+
+# Timing the program
 start = time.time()
-
-# Importing Necessary Libraries
-#from Linear_Spline import linear_spline
-
-
-# Unused plotting functions
-# =============================================================================
-# step = 100
-# img_array = np.zeros((rows,cols,bands))
-# for x in range(0,rows,step):
-#     rows = hdr.read_subregion((x,x+step),(0,cols))
-# =============================================================================
-
-# =============================================================================
-# fig = plt.figure()
-# camera = Camera(fig)
-#
-# for band,lamb in zip(range(bands),wvl):
-#     bands_plot = hdr.read_band(band)
-#     plt.imshow(bands_plot,cmap = 'gray',interpolation='nearest')
-#     plt.text(100,1000,f'{float(lamb)/1000:.3f} \u03BCm',color="white")
-#     camera.snap()
-#
-# animation = camera.animate(interval = 100, repeat = True, repeat_delay = 500)
-# animation.save(r"C:\Users\zacha\OneDrive\Desktop\m3.gif",writer='Pillow')
-# =============================================================================
 
 
 # Function to multiple locations of a character in a string
@@ -629,14 +604,13 @@ class HDR_Image():
 if 'hdr_file_list' in locals():
     print('HDR File List is Defined')
 else:
-    from M3_UnZip import *
-    hdr_file_list, hdr_files_path = M3_unzip(
-        False, folder='/')
+    from M3_UnZip import M3_unzip
+    hdr_file_list, hdr_files_path = M3_unzip(select = False, folder=r'/run/media/zvig/My Passport/Data/20230209T095534013597')
 
 obj_list = []
 for file in hdr_file_list:
     if file.find('rfl') > -1:
-        obj_list.append(HDR_Image(hdr_files_path+'/'+file[0:-4]+'/'+file))
+        obj_list.append(HDR_Image(file))
         
 def get_data_fromsave():
     # Get all pixel array from .npy file
@@ -663,50 +637,55 @@ def get_data_nosave():
     for obj, arr in zip(obj_list, arr_list):
         x, avg, std = obj.get_average_rfl(arr)
         data_arr[n, :] = [x, avg, std]
-        print('Data Added')
+        print(f'Data Added. Size is now {data_arr.shape}')
         n += 1
 
-    def avg_by_img(data_arr):
-        wav_num = []
-        for i in obj_list[0].hdr.bands.centers:
-            if i > 1000 and i < 2500:
-                wav_num.append(i)
+    return arr_list,data_arr
 
-        rfl_total_avglist = np.zeros((14, 83))
-        rfl_total_stdlist = np.zeros((14, 83))
+get_data_nosave()
 
-        for i in range(0, len(data_arr[:, 0, 0])):
+def avg_by_img(data_arr):
+    wav_num = []
+    for i in obj_list[0].hdr.bands.centers:
+        if i > 1000 and i < 2500:
+            wav_num.append(i)
 
-            x, y, std = data_arr[i, 0, :], data_arr[i, 1, :], data_arr[i, 2, :]
-            rfl_total_avglist[i, :] = y
-            rfl_total_stdlist[i, :] = std
+    rfl_total_avglist = np.zeros((14, 83))
+    rfl_total_stdlist = np.zeros((14, 83))
 
-        num_bands = len(rfl_total_avglist[0, :])
-        y = np.zeros((num_bands))
-        std = np.zeros((num_bands))
-        for i in range(0, num_bands):
-            y[i] = np.average(rfl_total_avglist[:, i])
-            std[i] = np.sqrt(np.sum(rfl_total_stdlist[:, i]**2)
-                             )/len(rfl_total_stdlist[:, i])
+    for i in range(0, len(data_arr[:, 0, 0])):
 
-        fancy_spec_plot(x, y, std=std,
-                        title="Average Reflectance of Non-Shaded Lunar South Pole",
-                        ylabel='Reflectance', xlabel='Wavelength (\u03BCm)')
-    # avg_by_img(data_arr)
+        x, y, std = data_arr[i, 0, :], data_arr[i, 1, :], data_arr[i, 2, :]
+        rfl_total_avglist[i, :] = y
+        rfl_total_stdlist[i, :] = std
 
-    def avg_by_pixel(arr_list):
-        rfl_by_pix_arr = np.zeros((83, 1))
-        n = 0
-        for obj, arr in zip(obj_list, arr_list):
-            x, all_arr = obj.get_average_rfl(arr, avg_by_img=False)
-            rfl_by_pix_arr = np.concatenate([rfl_by_pix_arr, all_arr], axis=1)
-            print(f'Array Added. It is now {rfl_by_pix_arr.shape} big')
-            n += 1
+    num_bands = len(rfl_total_avglist[0, :])
+    y = np.zeros((num_bands))
+    std = np.zeros((num_bands))
+    for i in range(0, num_bands):
+        y[i] = np.average(rfl_total_avglist[:, i])
+        std[i] = np.sqrt(np.sum(rfl_total_stdlist[:, i]**2)
+                            )/len(rfl_total_stdlist[:, i])
 
-        return rfl_by_pix_arr
-    big_arr = avg_by_pixel(arr_list)
-    big_arr = np.delete(big_arr, 0, 1)
-    print("Big Array Filled")
+    fancy_spec_plot(x, y, std=std,
+                    title="Average Reflectance of Non-Shaded Lunar South Pole",
+                    ylabel='Reflectance', xlabel='Wavelength (\u03BCm)')
+# avg_by_img(data_arr)
+
+def avg_by_pixel(arr_list):
+    rfl_by_pix_arr = np.zeros((83, 1))
+    n = 0
+    for obj, arr in zip(obj_list, arr_list):
+        x, all_arr = obj.get_average_rfl(arr, avg_by_img=False)
+        rfl_by_pix_arr = np.concatenate([rfl_by_pix_arr, all_arr], axis=1)
+        print(f'Array Added. It is now {rfl_by_pix_arr.shape} big')
+        n += 1
+
+    return rfl_by_pix_arr
+
+big_arr = avg_by_pixel(arr_list)
+big_arr = np.delete(big_arr, 0, 1)
+print("Big Array Filled")
         
 if 'big_arr' in locals() and 'arr_list' in locals():
     print ('Pixel Arrays are defined from files')

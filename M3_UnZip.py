@@ -1,4 +1,6 @@
-# -*- coding: utf-8 -*-
+"""
+Python Script for parsing M3 files from PDS
+"""
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -26,6 +28,7 @@ def M3_unzip(select,**kwargs):
     Tk().withdraw()
     if select == True:    
         hdrFolderPath = askdir()
+        print (hdrFolderPath)
     elif select == False and kwargs.get('folder') != None:
         hdrFolderPath = kwargs.get('folder')
     elif kwargs.get('folder') == None:
@@ -37,8 +40,18 @@ def M3_unzip(select,**kwargs):
     ##Exits script if files are already unzipped 
     sourcedir_FileList = os.listdir(hdrFolderPath)  
     if 'extracted_files' in sourcedir_FileList:
+        hdrFilesPath = os.path.join(hdrFolderPath,'extracted_files','hdr_files')
+        print(hdrFilesPath)
+        hdrFileList=[]
+        for root,dirs,files in os.walk(hdrFilesPath):
+            for file in files:
+                if file[len(file)-4:].find('.hdr')>-1 and root.find('sup') == -1:
+                    hdrFileList.append(os.path.join(root,file))
+
         print ('.zip Files have already been extracted')
-        exit()
+
+        return hdrFileList,hdrFilesPath
+        
 
     ##Unzips files and places them in "extracted_files" folder in source directory
     elif 'extracted_files' not in sourcedir_FileList:
@@ -47,8 +60,6 @@ def M3_unzip(select,**kwargs):
             if file.find(".zip") > -1:
                 myfile = zipfile.ZipFile(hdrFolderPath+"/"+file)
                 myfile.extractall(path=hdrFolderPath+"/extracted_files/"+file[0:-4])
-
-    
 
     extractedFilesPath = os.path.join(hdrFolderPath+'/extracted_files')
     
@@ -104,12 +115,14 @@ def M3_unzip(select,**kwargs):
     
     return hdrFileList,hdrFilesPath
 
-hdrFileList,hdrFilesPath = M3_unzip(select=False,folder=r'/run/media/zvig/My Passport/Data/20230209T095534013597 - Copy')
+##hdrFileList,hdrFilesPath = M3_unzip(select=False,folder=r'/run/media/zvig/My Passport/Data/20230209T095534013597 - Copy')
 
-if __name__ == 'main':
+if __name__ == "__main__":
     hdrFileList,hdrFilesPath = M3_unzip(select=True)
-    print (f'HDR files exist in {hdrFilesPath} \n\
-             HDR files are: {hdrFileList}')
+    print (f'HDR files exist in: {hdrFilesPath} \n\
+             HDR files are:')
+    for file in hdrFileList:
+        print (file)
 
 ##Getting list of files to copy into PDS
 # =============================================================================

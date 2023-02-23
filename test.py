@@ -1,9 +1,10 @@
-import spectral as sp
-import matplotlib.pyplot as plt
-import numpy as np
-import math
-import scipy.stats as ss
-import scipy.signal as sig
+# import spectral as sp
+# import matplotlib.pyplot as plt
+# import numpy as np
+# import math
+# import scipy.stats as ss
+# import scipy.signal as sig
+from tkinter.filedialog import askdirectory as askdir
 
 # =============================================================================
 # hdr = sp.envi.open(r"D:\Data\20230209T095534013597\extracted_files\hdr_files\m3g20090417t193320_v01_rfl\m3g20090417t193320_v01_rfl.hdr")
@@ -92,8 +93,16 @@ import scipy.signal as sig
 #     moving_avg(x,y,i)
 # ============================================================================
 
-def test(x):
-    for i in x:
-        return i
-    
-test([1,2,3])
+# def multiply(x,y):
+#     x = float(x)
+#     y = float(y)
+#     return x*y
+
+
+# if __name__ == "__main__":
+#     x,y = input('X: '),input('Y: ')
+#     product = multiply(x,y)
+#     print(f'The Answer is {product}')
+
+path = askdir()
+print (path)
