@@ -9,7 +9,6 @@ import random
 from sklearn.linear_model import LogisticRegression
 import matplotlib.cm as cm
 import spectral as sp
-from celluloid import Camera
 import os
 import zipfile
 from tkinter import Tk

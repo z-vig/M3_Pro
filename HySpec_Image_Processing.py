@@ -631,7 +631,7 @@ if 'hdr_file_list' in locals():
 else:
     from M3_UnZip import *
     hdr_file_list, hdr_files_path = M3_unzip(
-        False, folder=r"D:/Data/20230209T095534013597")
+        False, folder='/')
 
 obj_list = []
 for file in hdr_file_list:
@@ -761,7 +761,7 @@ def get_avg_rfl_data(plot_data=False):
                         ylabel= 'Reflectance', xlabel = 'Wavelength (\u03BCm)')
     return wvl,rfl_avgSP,rfl_stdSP
         
-#wvl, rfl_avgSP, rfl_stdSP = get_avg_rfl_data(plot_data=False)
+wvl, rfl_avgSP, rfl_stdSP = get_avg_rfl_data(plot_data=False)
 
 
 
