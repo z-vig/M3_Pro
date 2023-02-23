@@ -14,7 +14,6 @@ from tkinter.filedialog import askdirectory as askdir
 from tkinter import Tk
 import zipfile
 import os
-from celluloid import Camera
 import spectral as sp
 import matplotlib.cm as cm
 from sklearn.linear_model import LogisticRegression
