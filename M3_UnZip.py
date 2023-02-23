@@ -19,90 +19,101 @@ from scipy import interpolate as interp
 import shutil
 
 def M3_unzip(select,**kwargs):
+    defaultKwargs = {'folder':None}
+    kwargs = {**defaultKwargs,**kwargs}
+
     ##Asks user what the source directory is for M3 Data
     Tk().withdraw()
     if select == True:    
-        hdr_folder_path = askdir()
-    elif select == False:
-        hdr_folder_path = kwargs['folder']
+        hdrFolderPath = askdir()
+    elif select == False and kwargs.get('folder') != None:
+        hdrFolderPath = kwargs.get('folder')
+    elif kwargs.get('folder') == None:
+        raise ValueError(f"Folder cannot be {type(kwargs.get('folder'))}")
     else:
         raise Exception("Select is either True or False")
     
     
+    ##Exits script if files are already unzipped 
+    sourcedir_FileList = os.listdir(hdrFolderPath)  
+    if 'extracted_files' in sourcedir_FileList:
+        print ('.zip Files have already been extracted')
+        exit()
+
     ##Unzips files and places them in "extracted_files" folder in source directory
-    hdr_folder = os.listdir(hdr_folder_path)
-    if 'extracted_files' not in hdr_folder:
-        for file in hdr_folder:
+    elif 'extracted_files' not in sourcedir_FileList:
+        os.mkdir(hdrFolderPath+'/extracted_files')
+        for file in sourcedir_FileList:
             if file.find(".zip") > -1:
-                myfile = zipfile.ZipFile(hdr_folder_path+"/"+file)
-                myfile.extractall(path=hdr_folder_path+"/extracted_files/"+file[0:-4])
-                
-        try:
-            os.mkdir(hdr_folder_path+'/extracted_files')
-        except:
-            pass
+                myfile = zipfile.ZipFile(hdrFolderPath+"/"+file)
+                myfile.extractall(path=hdrFolderPath+"/extracted_files/"+file[0:-4])
+
     
-    try:
-        os.mkdir(hdr_folder_path+'/extracted_files/shape_files')
-    except:
-        pass
+
+    extractedFilesPath = os.path.join(hdrFolderPath+'/extracted_files')
     
-    try:
-        os.mkdir(hdr_folder_path+'/extracted_files/hdr_files')
-    except:
-        pass
-    
-        
-    for i in os.walk(hdr_folder_path+'/extracted_files'):
-        if 'dershp' in i[1]:
-            for i in os.walk(i[0]+'/dershp'):
-                if len(i[2]) != 0 and ''.join(i[2]).find('.zip')>-1:
-                    for n in range(0,len(i[2])):
-                        myfile = zipfile.ZipFile(i[0]+'/'+i[2][n])
-                        myfile.extractall(path=hdr_folder_path+'/extracted_files/shape_files/'+i[2][n][0:-4])
+    ##Makes directories for .lbl, .HDR and shape files
+    lblFilesPath = os.path.join(extractedFilesPath,'lbl_files') #lbl folders containing shape info
+    os.mkdir(lblFilesPath)
+    hdrFilesPath = os.path.join(extractedFilesPath,'hdr_files') #hdr and img files in the same folder
+    os.mkdir(hdrFilesPath)
+    shapeFilesPath = os.path.join(extractedFilesPath,'shape_files') #all shape file info (.dbf,.prj,.shp,.lock,.xml,.shx) into a single folder
+    os.mkdir(shapeFilesPath)
+
+    ##Filling .lbl directory
+    for root,dirs,files in os.walk(extractedFilesPath):
+        for file in files:
+            if file.find('.zip')>-1:
+                myfile = zipfile.ZipFile(os.path.join(root,file))
+                myfile.extractall(path=os.path.join(lblFilesPath,file[0:-4]))
                         
-    ##Gets list of all .hdr files in the source directory
-    ex_files = os.listdir(hdr_folder_path+'/'+'extracted_files')
-    hdr_file_list = []
-    hdr_folder_list = []
-    for i in os.walk(hdr_folder_path):
-        if len(i[2]) != 0 and ''.join(i[2]).find('.hdr') > -1 and i[0].find('hdr_files')==-1:
-            for file in i[2]:
-                if file.find('hdr') > -1:
-                    #print (i[0],file)
-                    hdr_file_list.append(file)
-                    hdr_folder_list.append(i[0])
-                    
-    for file,folder in zip(hdr_file_list,hdr_folder_list):
-        try:
-            os.mkdir(hdr_folder_path+'/extracted_files/hdr_files/'+file[0:-4])
-        except:
-            pass
+    ##Filling .HDR directory
+    for root,dirs,files in os.walk(extractedFilesPath):
+        if root.find('hdr_files') == -1:
+            for file in files:
+                file_ext = file[len(file)-4:]
+                if file_ext.find('.hdr')>-1 and file.find('sup') == -1: ##Copy _rfl.hdr files
+                    copyto_hdr = os.path.join(hdrFilesPath,file[0:-4])
+                    os.mkdir(copyto_hdr)
+                    shutil.copyfile(os.path.join(root,file),os.path.join(copyto_hdr,file))
+                elif file_ext.find('.img')>-1 and file.find('sup') == -1: ##Copy _rfl.img files
+                    copyto_hdr = os.path.join(hdrFilesPath,file[0:-4])
+                    shutil.copyfile(os.path.join(root,file),os.path.join(copyto_hdr,file))
+                elif file_ext.find('.hdr')>-1 and file.find('sup') > -1: ##Copy _sup.hdr files
+                    copyto_sup = os.path.join(hdrFilesPath,file[0:-4])
+                    os.mkdir(copyto_sup)
+                    shutil.copyfile(os.path.join(root,file),os.path.join(copyto_sup,file))
+                elif file_ext.find('.img')>-1 and file.find('sup') > -1: ##Copy _sup.img files
+                    copyto_sup = os.path.join(hdrFilesPath,file[0:-4])
+                    shutil.copyfile(os.path.join(root,file),os.path.join(copyto_sup,file))
+
+    ##Filling shape file directory
+    for root,dirs,files in os.walk(lblFilesPath):
+        for file in files:
+            shutil.copyfile(os.path.join(root,file),os.path.join(shapeFilesPath,file))
         
-        try:
-            shutil.copyfile(folder+'/'+file,hdr_folder_path+'/extracted_files/hdr_files/'+file[0:-4]+'/'+file)
-            shutil.copyfile(folder+'/'+file[0:-4]+'.img',hdr_folder_path+'/extracted_files/hdr_files/'+file[0:-4]+'/'+file[0:-4]+'.img')
-        except:
-            print('failed')
-            pass
-        
-    hdr_files_path = hdr_folder_path+'/extracted_files/hdr_files'
-        
+    ##Getting HDR file list
+    hdrFileList=[]
+    for root,dirs,files in os.walk(hdrFilesPath):
+        for file in files:
+            if file[len(file)-4:].find('.hdr')>-1 and root.find('sup') == -1:
+                hdrFileList.append(os.path.join(root,file))
                     
     ##Counts the number of images used
-    n = 0
-    for i in hdr_file_list:
-        if i.find('rfl') > -1:
-            n+=1
-    print (f"Number of Files Parsed & Sorted: {n}")
+    print (f"Number of Files Parsed & Sorted: {len(hdrFileList)}")
     
-    return hdr_file_list,hdr_files_path
+    return hdrFileList,hdrFilesPath
 
-hdr_file_list,hdr_files_path = M3_unzip(False,folder=r"D:/Data/20230209T095534013597")
+hdrFileList,hdrFilesPath = M3_unzip(select=False,folder=r'/run/media/zvig/My Passport/Data/20230209T095534013597 - Copy')
+
+if __name__ == 'main':
+    hdrFileList,hdrFilesPath = M3_unzip(select=True)
+    print (f'HDR files exist in {hdrFilesPath} \n\
+             HDR files are: {hdrFileList}')
 
 ##Getting list of files to copy into PDS
 # =============================================================================
-# for i in os.walk(hdr_folder_path+'/extracted_files/hdr_files'):
+# for i in os.walk(hdrFolderPath+'/extracted_files/hdr_files'):
 #     for file in i[2]:
 #         if file.find('_rfl')>-1:
 #             print (file[0:-12]+'*')
