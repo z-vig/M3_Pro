@@ -3,17 +3,29 @@
 test.py
 """
 
+import spectral as sp
+def find(s, ch):
+    return [i for i, ltr in enumerate(s) if ltr == ch]
+# =============================================================================
+# def create_scale(x):
+#     def scaled_num(y):
+#         return y*x
+#     
+#     return scaled_num
+# 
+# scale_10 = create_scale(10)
+# 
+# for i in range(10):
+#     print (scale_10(i))
+# =============================================================================
 
-def multiply(x,y):
-    x = float(x)
-    y = float(y)
-    return x*y
-
-
-if __name__ == "__main__":
-    x_,y_ = input('X: '),input('Y: ')
-    product = multiply(x_,y_)
-    print(f'The Answer is {product}')
+# =============================================================================
+# 
+# if __name__ == "__main__":
+#     x_,y_ = input('X: '),input('Y: ')
+#     product = multiply(x_,y_)
+#     print(f'The Answer is {product}')
+# =============================================================================
 
 # import spectral as sp
 # import matplotlib.pyplot as plt
@@ -41,29 +53,24 @@ if __name__ == "__main__":
 # 
 # =============================================================================
 
-# =============================================================================
-# class MyClass:
-#     def __init__(self,value):
-#         self._value = value
-#         
-#     @property 
-#     def value(self):
-#         print ('Getting Value')
-#         return self._value
-#     
-#     @value.setter 
-#     def value(self,value):
-#         print ('Setting value to ' + value)
-#         self._value = value
-#     
-#     @value.deleter 
-#     def value(self):
-#         print ('Deleting Value')
-#         del self._value
-#         
-#     def printvalue(self):
-#         print (self.value)
-# =============================================================================
+class MyClass:
+    def __init__(self,path):
+        self.hdr = sp.envi.open(path)
+        data_str = self.hdr.fid.name[find(self.hdr.fid.name, '\\')[-1]+1:len(self.hdr.fid.name)-4]
+        date = f"{data_str[3:7]}/{data_str[7:9]}/{data_str[9:11]}"
+        date = date.replace('/','-')
+        time = f"{data_str[12:14]}:{data_str[14:16]}:{data_str[16:18]}"
+        date_time = date+'_'+time
+        self._datetime = date_time
+    
+    @property
+    def datetime(self):
+        print ('Getting Date/Time...')
+        return self._datetime
+        
+        
+        
+img1 = MyClass(r"D:\Data\20230209T095534013597\extracted_files\hdr_files\m3g20090417t193320_v01_rfl\m3g20090417t193320_v01_rfl.hdr")
 
 # =============================================================================
 # def func(**kwargs):
