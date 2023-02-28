@@ -74,10 +74,10 @@ class HDR_Image():
     # Method that returns date, time, and data types of HDR Image
     @property
     def datetime(self):
-        print (f'Getting Date/Time... \n\
-               Data Type: {self._dataType} \n\
-                Observation Type: {self._obsType} \n\
-                Date/Time: {self._dateTime}')
+        # print (f'Getting Date/Time... \n\
+        #        Data Type: {self._dataType} \n\
+        #         Observation Type: {self._obsType} \n\
+        #         Date/Time: {self._dateTime}')
         return self._dateTime
 
     # Plots image of a given wavelength or all three supplemental image, if using a .sup file as input
@@ -580,8 +580,8 @@ if __name__ == "__main__":
             obj_list.append(HDR_Image(file))
     print (f'Images Loaded at {time.time()-start:.2f} seconds')
 
-    wvl,avg,std = obj_list[0].get_average_rfl(avg_by_img=True)
-    print (wvl,avg,std)
+    # wvl,avg,std = obj_list[0].get_average_rfl(avg_by_img=True)
+    # print (wvl,avg,std)
 
 
     end = time.time()
