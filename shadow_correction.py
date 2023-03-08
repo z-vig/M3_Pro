@@ -9,6 +9,9 @@ from fancy_spec_plot import fancy_spec_plot
 from spec_average import spec_avg
 from scipy import interpolate as interp
 from matplotlib.animation import FuncAnimation
+from cubic_spline_image import cubic_spline_image
+from cubic_spline_image import removeNAN
+import spectral as sp
 #%%
 ## Getting necessary data arrays and M3 stamp list
 if 'shadow' not in locals():
@@ -22,9 +25,11 @@ stampList = []
 for file in hdrFileList:
     stampList.append(HDR_Image(os.path.join(hdrFilesPath,file)))
 
+#cubic_img = np.load(r"/run/media/zvig/My Passport/Data/cubic_spline_image.npy")
+
 ## Getting average reflectance of South Pole (R_bi)
 def get_avg_rfl_data(plot_data=False):
-    wvl = stampList[0].hdr.bands.centers
+    wvl = stampList[0].hdr.bands.centers[2:]
     rfl_avgSouthPole=np.zeros(83)
     rfl_stdSouthPole=np.zeros(83)
     for n in range(mosaicArray.shape[0]):
@@ -41,7 +46,7 @@ def get_avg_rfl_data(plot_data=False):
         
     return wvl,rfl_avgSouthPole,rfl_stdSouthPole
         
-wvl, rfl_avgSP, rfl_stdSP = get_avg_rfl_data(plot_data=False)
+
 
 ## Shadow Correction
 def shadow_correction(x_pt, y_pt, **kwargs):
@@ -52,6 +57,7 @@ def shadow_correction(x_pt, y_pt, **kwargs):
     R_bi = rfl_avgSP[21:73]
 
     R_meas, w = stampList[0].plot_spec(x_pt, y_pt, plot_cspline_boxcar=True, box_size=5,showPlot=False)
+    imgAverage,imgCubic = cubic_spline_image()
 
     R_T = R_meas/R_bi
 
@@ -81,40 +87,51 @@ def shadow_correction(x_pt, y_pt, **kwargs):
                 
         ax.legend()
 
-#%%
-plt.imshow(shadow[0])
-original = stampList[0].hdr.read_band(2)
-darkX,darkY = np.where(shadow[0]==0)
-fig = plt.figure(figsize=(10,10))
-ax1 = plt.subplot(1,1,1)
-#ax2 = plt.subplot(1,2,2)
-og_img = ax1.imshow(original)
+if __name__ == "__main__":
+    print('Plotting...')
+    wvl, rfl_avgSP, rfl_stdSP = get_avg_rfl_data(plot_data=False)
+    wvl = np.array(wvl)
+    allowedIndices = np.where((wvl>900)&(wvl<2600))[0]
+    allowedWvl = wvl[allowedIndices]
+    hdr = sp.envi.open(r"/run/media/zvig/My Passport/Data/20230209T095534013597/extracted_files/hdr_files/m3g20090417t193320_v01_rfl/m3g20090417t193320_v01_rfl.hdr")
+    R_c = hdr.read_bands(allowedIndices)
+    R_meas = hdr.read_bands(allowedIndices)
 
-data = np.array(([0,0,0],[0,1,0],[0,0,0]))
-xlist,ylist=np.where(data==0)
+    R_bi = rfl_avgSP[allowedIndices]
 
-#img = ax1.imshow(data)
+    xShade,yShade = np.where(shadow[0]==0)
+    xLight,yLight = np.where(shadow[0]!=0)
 
-print (darkX,darkY)
-def animation_frame(i):
-    x = darkX[i]
-    y = darkY[i]
-    R_T = original[x,y]
-    R_bi = shadow_correction(x,y,returnShadeCorrection=True)[0]
-    original[x,y] = R_T/R_bi
-    og_img.set_data(original)
+    R_c[xShade,yShade,:] = R_c[xShade,yShade,:]/R_bi
 
-    return og_img
+    #imgAverageCorrected,imgCubicCorrected = cubic_spline_image(R_c,wvl,5)
 
-animation = FuncAnimation(fig,func=animation_frame,frames=np.arange(0,len(darkX),1),interval=0.01)
-plt.show()
+    cubic_img = np.load(r"/run/media/zvig/My Passport/Data/cubic_spline_image.npy")
+    plt.imshow(cubic_img[:,:,0])
 
-# n = 0
-# for x,y in zip(darkPixels[0],darkPixels[1]):
-#     print (f'\rPlotting {x},{y}',end='')
-#     #original[x,y] = shadow_correction(x,y,returnShadeCorrection=True)[0]
+    def plot_correction(x,y):
+        fig,ax = plt.subplots(1,1)
+        ax.plot(R_c[x,y,:],label='Corrected')
+        ax.plot(R_meas[x,y,:],label='Original')
+        ax.set_title(f'{x},{y} Spectrum')
+        ax.legend()
+    
+    plot_correction(1,2)
+    plot_correction(91,100)
+    plot_correction(1000,300)
 
-#ax2.imshow(original)
+    fig = plt.figure()
+    ax1 = fig.add_subplot(1,2,1)
+    ax2 = fig.add_subplot(1,2,2)
+    ax1.imshow(R_meas[:,:,0])
+    ax2.imshow(R_c[:,:,0])
+    plt.show()
+
+    
+
+    # fig,ax = plt.subplots(1,1)
+    # ax.plot(allowedWvl,original_img[91,100,:])
+    # ax.plot(allowedWvl,cubic_img[91,100,:])
+    # plt.show()
 
 
-# %%

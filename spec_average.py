@@ -46,7 +46,8 @@ def spec_avg(spec_list,wvl_list,box_size):
     
     return avg_rfl,std_rfl,avg_wvl
 
-hdr = sp.envi.open(r"D:\Data\20230209T095534013597\extracted_files\hdr_files\m3g20090417t193320_v01_rfl\m3g20090417t193320_v01_rfl.hdr")
-wvl,rfl = hdr.bands.centers[21:72],hdr.read_pixel(91,100)[21:72]
+if __name__ == "__main__":
+    hdr = sp.envi.open(r"D:\Data\20230209T095534013597\extracted_files\hdr_files\m3g20090417t193320_v01_rfl\m3g20090417t193320_v01_rfl.hdr")
+    wvl,rfl = hdr.bands.centers[21:72],hdr.read_pixel(91,100)[21:72]
 
-y_avg,y_std,x_avg = spec_avg(rfl,wvl,3)
+    y_avg,y_std,x_avg = spec_avg(rfl,wvl,3)

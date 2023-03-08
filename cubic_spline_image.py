@@ -23,7 +23,11 @@ def removeNAN(array):
     
     return array,np.array(nan_locations)
 
-def cubic_spline_image(signalArray,wavelengthValues,box_size):
+def cubic_spline_image(signalArray,wavelengthValues,box_size,**kwargs):
+    defaultKwargs = {"saveAvg":False,"saveCubic":False}
+    kwargs = {**defaultKwargs,**kwargs}
+
+
     print (f'An array of size {signalArray.shape} and band \
 centers from {wavelengthValues.min()}\u03BCm to {wavelengthValues.max()}\u03BCm had been loaded')
     
@@ -65,6 +69,12 @@ centers from {wavelengthValues.min()}\u03BCm to {wavelengthValues.max()}\u03BCm 
             signal_CubicSpline[row,:] = f(xinterp)
         
         imgCubicSpline[:,x,:] = signal_CubicSpline
+
+        if kwargs.get('saveAvg') == True:
+            np.save(r"/run/media/zvig/My Passport/Data/avg_image.npy",imgLinInterp)
+        if kwargs.get('saveCubic') == True:
+            np.save(r"/run/media/zvig/My Passport/Data/cubic_spline_image.npy",imgCubicSpline)
+        
         
         
     return imgLinInterp,imgCubicSpline
@@ -72,7 +82,7 @@ centers from {wavelengthValues.min()}\u03BCm to {wavelengthValues.max()}\u03BCm 
 if __name__ == "__main__":
     start = time.time()
     
-    hdr = sp.envi.open(r"D:\Data\20230209T095534013597\extracted_files\hdr_files\m3g20090417t193320_v01_rfl\m3g20090417t193320_v01_rfl.hdr")
+    hdr = sp.envi.open(r"/run/media/zvig/My Passport/Data/20230209T095534013597/extracted_files/hdr_files/m3g20090417t193320_v01_rfl/m3g20090417t193320_v01_rfl.hdr")
     
     bandCenters = np.array(hdr.bands.centers)
     allowedIndices = np.where((bandCenters>900)&(bandCenters<2600))[0]
@@ -88,6 +98,8 @@ if __name__ == "__main__":
     maxdel = len(wavelengthValues)-nan_loc[2,1]
     wvl = np.delete(wavelengthValues,slice(0,nan_loc[2,0]))
     wvl = np.delete(wvl,slice(len(wvl)-maxdel,len(wvl)))
+
+    np.save(r"/run/media/zvig/My Passport/Data/cubic_spline_image.npy",imgCubic)
     
     end = time.time()
     runtime = end-start
