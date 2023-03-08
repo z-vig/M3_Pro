@@ -28,7 +28,6 @@ def M3_unzip(select,**kwargs):
     Tk().withdraw()
     if select == True:    
         hdrFolderPath = askdir()
-        print (hdrFolderPath)
     elif select == False and kwargs.get('folder') != None:
         hdrFolderPath = kwargs.get('folder')
     elif kwargs.get('folder') == None:
@@ -41,7 +40,6 @@ def M3_unzip(select,**kwargs):
     sourcedir_FileList = os.listdir(hdrFolderPath)  
     if 'extracted_files' in sourcedir_FileList:
         hdrFilesPath = os.path.join(hdrFolderPath,'extracted_files','hdr_files')
-        print(hdrFilesPath)
         hdrFileList=[]
         for root,dirs,files in os.walk(hdrFilesPath):
             for file in files:

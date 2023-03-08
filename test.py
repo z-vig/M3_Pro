@@ -4,16 +4,16 @@ test.py
 """
 
 
-def multiply(x,y):
-    x = float(x)
-    y = float(y)
-    return x*y
+# def multiply(x,y):
+#     x = float(x)
+#     y = float(y)
+#     return x*y
 
 
-if __name__ == "__main__":
-    x_,y_ = input('X: '),input('Y: ')
-    product = multiply(x_,y_)
-    print(f'The Answer is {product}')
+# if __name__ == "__main__":
+#     x_,y_ = input('X: '),input('Y: ')
+#     product = multiply(x_,y_)
+#     print(f'The Answer is {product}')
 
 # import spectral as sp
 # import matplotlib.pyplot as plt
@@ -112,6 +112,14 @@ if __name__ == "__main__":
 # for i in np.arange(1,20,2):
 #     moving_avg(x,y,i)
 # ============================================================================
+import numpy as np
+from get_pixel_mosaic import create_arrays
+
+if 'shadow' not in locals():
+    shadow,imgStats,mosaic,mosaicStats = create_arrays(r'/run/media/zvig/My Passport/Data')
+elif 'shadow' in locals():
+    print ('Already Done')
+
 
 
 

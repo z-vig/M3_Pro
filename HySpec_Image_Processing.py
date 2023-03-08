@@ -26,10 +26,7 @@ import time
 
 from fancy_spec_plot import fancy_spec_plot
 from moving_avg import moving_avg
-
-# Timing the program
-start = time.time()
-
+from M3_UnZip import M3_unzip
 
 # Function to multiple locations of a character in a string
 def find(s, ch):
@@ -41,7 +38,7 @@ class HDR_Image():
     # Constructor method
     def __init__(self, path):
         self.hdr = sp.envi.open(path)
-        data_str = self.hdr.fid.name[find(self.hdr.fid.name, '\\')[-1]+1:len(self.hdr.fid.name)-4]
+        data_str = self.hdr.fid.name[find(self.hdr.fid.name, '/')[-1]+1:len(self.hdr.fid.name)-4]
         date = f"{data_str[3:7]}/{data_str[7:9]}/{data_str[9:11]}"
         date = date.replace('/','-')
         time = f"{data_str[12:14]}:{data_str[14:16]}:{data_str[16:18]}"
@@ -77,10 +74,10 @@ class HDR_Image():
     # Method that returns date, time, and data types of HDR Image
     @property
     def datetime(self):
-        print (f'Getting Date/Time... \n\
-               Data Type: {self._dataType} \n\
-                Observation Type: {self._obsType} \n\
-                Date/Time: {self._dateTime}')
+        # print (f'Getting Date/Time... \n\
+        #        Data Type: {self._dataType} \n\
+        #         Observation Type: {self._obsType} \n\
+        #         Date/Time: {self._dateTime}')
         return self._dateTime
 
     # Plots image of a given wavelength or all three supplemental image, if using a .sup file as input
@@ -571,6 +568,7 @@ class HDR_Image():
             return wvl[0:-2], avg_rfl_arr
 
 
+<<<<<<< HEAD
 end = time.time()
 runtime = end-start
 if runtime < 1:
@@ -579,3 +577,30 @@ elif runtime < 60 and runtime > 1:
     print(f'Program Executed in {runtime:.3f} seconds')
 else:
     print(f'Program Executed in {runtime/60:.0f} minutes and {runtime%60:.3f} seconds')
+=======
+
+if __name__ == "__main__": 
+    start = time.time()
+
+    hdrFileList,hdrFilePath = M3_unzip(select=False,folder=r'/run/media/zvig/My Passport/Data/20230209T095534013597')
+
+    print ('Loading Images...')
+    obj_list = []
+    for file in hdrFileList:
+        if file.find('rfl') > -1:
+            obj_list.append(HDR_Image(file))
+    print (f'Images Loaded at {time.time()-start:.2f} seconds')
+
+    # wvl,avg,std = obj_list[0].get_average_rfl(avg_by_img=True)
+    # print (wvl,avg,std)
+
+
+    end = time.time()
+    runtime = end-start
+    if runtime < 1:
+        print(f'Program Executed in {runtime*10**3:.3f} milliseconds')
+    elif runtime < 60 and runtime > 1:
+        print(f'Program Executed in {runtime:.3f} seconds')
+    else:
+        print(f'Program Executed in {runtime/60:.0f} minutes and {runtime%60:.3f} seconds')
+>>>>>>> 660f1592f85ccfb8de7f631d4223101981b97eba
