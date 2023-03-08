@@ -471,6 +471,7 @@ class HDR_Image():
         def func(x):
             return 1+-1.6*x+0.3*x**2+x**3+0.45*x**4
         y_test = []
+        
         for i in x_test:
             y_test.append(func(i))
 
@@ -568,8 +569,6 @@ class HDR_Image():
             return wvl[0:-2], rfl_avg, rfl_std
         elif kwargs["avg_by_img"] == False:
             return wvl[0:-2], avg_rfl_arr
-
-
 
 
 end = time.time()

@@ -31,14 +31,22 @@ def spec_avg(spec_list,wvl_list,box_size):
     rfl_last = []
     wvl_last = []
     #print (avg_array)
+    if np.all(np.where(avg_array==0,True,False)):
+        return avg_rfl,std_rfl,avg_wvl
+    
     for rfl,wvl in zip(avg_array[:,0],avg_array[:,1]):
         if rfl != 0:
             rfl_last.append(rfl)
             wvl_last.append(wvl)
             
-    #print (wvl_last)
+    print (wvl_last)
     avg_rfl.append(np.average(rfl_last))
     std_rfl.append(np.std(rfl_last))
     avg_wvl.append(np.average(wvl_last))
     
     return avg_rfl,std_rfl,avg_wvl
+
+hdr = sp.envi.open(r"D:\Data\20230209T095534013597\extracted_files\hdr_files\m3g20090417t193320_v01_rfl\m3g20090417t193320_v01_rfl.hdr")
+wvl,rfl = hdr.bands.centers[21:72],hdr.read_pixel(91,100)[21:72]
+
+y_avg,y_std,x_avg = spec_avg(rfl,wvl,3)
