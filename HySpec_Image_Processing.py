@@ -50,6 +50,9 @@ class HDR_Image():
             obs_type = 'Global'
         elif data_str[2] == 't':
             obs_type = 'Target'
+        else:
+            print (data_str[2])
+            raise Exception("Data String Error!")
             
         if data_str[len(data_str)-3:] == 'sup':
             data_type = "Supplemental"

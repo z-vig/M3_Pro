@@ -11,10 +11,11 @@ def create_arrays(saveFolder):
     start = time.time()
 
     ##Get hdr_file_list
-    hdrFileList,hdrFilePath = M3_unzip(select=False,folder=r'/run/media/zvig/My Passport/Data/20230209T095534013597')
+    hdrFileList,hdrFilePath = M3_unzip(select=False,folder=r'D:/Data/20230209T095534013597')
 
     ##Load in all images for mosaic from source directory
     print ('Loading Images...')
+    print(hdrFileList)
     obj_list = []
     for file in hdrFileList:
         if file.find('rfl') > -1:
@@ -100,5 +101,5 @@ def create_arrays(saveFolder):
 
 if __name__ == "__main__":
     print('Creating image and mosaic statistics...')
-    create_arrays(r'/run/media/zvig/My Passport/Data')
+    create_arrays(r'D:/Data')
     print ('Statistics calculated! Success!')

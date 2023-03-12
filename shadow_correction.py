@@ -1,4 +1,4 @@
-#%%
+
 from HySpec_Image_Processing import HDR_Image
 from get_pixel_mosaic import create_arrays
 from M3_UnZip import M3_unzip
@@ -12,15 +12,15 @@ from matplotlib.animation import FuncAnimation
 from cubic_spline_image import cubic_spline_image
 from cubic_spline_image import removeNAN
 import spectral as sp
-#%%
+
 ## Getting necessary data arrays and M3 stamp list
 if 'shadow' not in locals():
-    shadow,imgStats,mosaicArray,mosaicStats = create_arrays(r'/run/media/zvig/My Passport/Data')
+    shadow,imgStats,mosaicArray,mosaicStats = create_arrays(r'D:/Data')
     print ('Arrays Loaded')
 elif 'shadow' in locals():
     print ('Arrays Exist')
 
-hdrFileList,hdrFilesPath = M3_unzip(select=False,folder=r'/run/media/zvig/My Passport/Data/20230209T095534013597')
+hdrFileList,hdrFilesPath = M3_unzip(select=False,folder=r'D:/Data/20230209T095534013597')
 stampList = []
 for file in hdrFileList:
     stampList.append(HDR_Image(os.path.join(hdrFilesPath,file)))
@@ -80,10 +80,12 @@ def shadow_correction(x_pt, y_pt, **kwargs):
         if kwargs['plot_cspline'] == True:
             fancy_spec_plot(fig, ax, x, f(x), std=ferr(x), title="Shadow-Corrected Spectrum",
                             line_style='solid', line_color='k', std_color='gray', label='Cubic Spline')
-        if kwargs['plot_minima'] == True:
-            for _min in wvl_min_list:
-                ax.vlines(_min, min(f(x)), max(f(x)), ls='--',
-                          color='k', label=str(round(_min, 1)))
+# =============================================================================
+#         if kwargs['plot_minima'] == True:
+#             for _min in wvl_min_list:
+#                 ax.vlines(_min, min(f(x)), max(f(x)), ls='--',
+#                           color='k', label=str(round(_min, 1)))
+# =============================================================================
                 
         ax.legend()
 
@@ -93,7 +95,7 @@ if __name__ == "__main__":
     wvl = np.array(wvl)
     allowedIndices = np.where((wvl>900)&(wvl<2600))[0]
     allowedWvl = wvl[allowedIndices]
-    hdr = sp.envi.open(r"/run/media/zvig/My Passport/Data/20230209T095534013597/extracted_files/hdr_files/m3g20090417t193320_v01_rfl/m3g20090417t193320_v01_rfl.hdr")
+    hdr = sp.envi.open(r"D:/Data/20230209T095534013597/extracted_files/hdr_files/m3g20090417t193320_v01_rfl/m3g20090417t193320_v01_rfl.hdr")
     R_c = hdr.read_bands(allowedIndices)
     R_meas = hdr.read_bands(allowedIndices)
 
@@ -106,7 +108,7 @@ if __name__ == "__main__":
 
     #imgAverageCorrected,imgCubicCorrected = cubic_spline_image(R_c,wvl,5)
 
-    cubic_img = np.load(r"/run/media/zvig/My Passport/Data/cubic_spline_image.npy")
+    cubic_img = np.load(r"D:/Data/cubic_spline_image.npy")
     plt.imshow(cubic_img[:,:,0])
 
     def plot_correction(x,y):
