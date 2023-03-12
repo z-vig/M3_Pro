@@ -15,7 +15,6 @@ def create_arrays(saveFolder):
 
     ##Load in all images for mosaic from source directory
     print ('Loading Images...')
-    print(hdrFileList)
     obj_list = []
     for file in hdrFileList:
         if file.find('rfl') > -1:

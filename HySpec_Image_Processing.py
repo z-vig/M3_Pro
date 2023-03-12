@@ -38,7 +38,7 @@ class HDR_Image():
     # Constructor method
     def __init__(self, path):
         self.hdr = sp.envi.open(path)
-        data_str = self.hdr.fid.name[find(self.hdr.fid.name, '/')[-1]+1:len(self.hdr.fid.name)-4]
+        data_str = self.hdr.fid.name[find(self.hdr.fid.name, '\\')[-1]+1:len(self.hdr.fid.name)-4]
         date = f"{data_str[3:7]}/{data_str[7:9]}/{data_str[9:11]}"
         date = date.replace('/','-')
         time = f"{data_str[12:14]}:{data_str[14:16]}:{data_str[16:18]}"
@@ -51,7 +51,10 @@ class HDR_Image():
         elif data_str[2] == 't':
             obs_type = 'Target'
         else:
-            print (data_str[2])
+            print (f'HDR File Name: {self.hdr.fid.name}')
+            print (find(self.hdr.fid.name, '/'))
+            print (data_str)
+            print (f'Observation Type loaded as: {data_str[2]}')
             raise Exception("Data String Error!")
             
         if data_str[len(data_str)-3:] == 'sup':

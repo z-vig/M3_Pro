@@ -24,7 +24,7 @@ def removeNAN(array):
     return array,np.array(nan_locations)
 
 def cubic_spline_image(signalArray,wavelengthValues,box_size,**kwargs):
-    defaultKwargs = {"saveAvg":False,"saveCubic":False}
+    defaultKwargs = {"saveAvg":False,"saveCubic":False,"findMin":False}
     kwargs = {**defaultKwargs,**kwargs}
 
 
@@ -74,6 +74,9 @@ centers from {wavelengthValues.min()}\u03BCm to {wavelengthValues.max()}\u03BCm 
             np.save(r"/run/media/zvig/My Passport/Data/avg_image.npy",imgLinInterp)
         if kwargs.get('saveCubic') == True:
             np.save(r"/run/media/zvig/My Passport/Data/cubic_spline_image.npy",imgCubicSpline)
+
+        if kwargs.get("findMin") == True:
+            print ('Find Minimum is true')
         
         
         
