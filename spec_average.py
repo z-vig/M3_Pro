@@ -1,14 +1,11 @@
 # -*- coding: utf-8 -*-
 """
-Created on Fri Feb 10 14:53:33 2023
-
-@author: zacha
+Script for averaging spectral signal
 """
 
 import numpy as np
 import matplotlib.pyplot as plt
 import spectral as sp
-
 
 def spec_avg(spec_list,wvl_list,box_size):
     avg_array = np.zeros((box_size,2))
@@ -30,7 +27,6 @@ def spec_avg(spec_list,wvl_list,box_size):
     
     rfl_last = []
     wvl_last = []
-    #print (avg_array)
     if np.all(np.where(avg_array==0,True,False)):
         return avg_rfl,std_rfl,avg_wvl
     
@@ -39,7 +35,6 @@ def spec_avg(spec_list,wvl_list,box_size):
             rfl_last.append(rfl)
             wvl_last.append(wvl)
             
-    print (wvl_last)
     avg_rfl.append(np.average(rfl_last))
     std_rfl.append(np.std(rfl_last))
     avg_wvl.append(np.average(wvl_last))
@@ -47,7 +42,9 @@ def spec_avg(spec_list,wvl_list,box_size):
     return avg_rfl,std_rfl,avg_wvl
 
 if __name__ == "__main__":
-    hdr = sp.envi.open(r"D:\Data\20230209T095534013597\extracted_files\hdr_files\m3g20090417t193320_v01_rfl\m3g20090417t193320_v01_rfl.hdr")
+    hdr = sp.envi.open(r"D:/Data/20230209T095534013597/extracted_files/hdr_files/m3g20090417t193320_v01_rfl/m3g20090417t193320_v01_rfl.hdr")
     wvl,rfl = hdr.bands.centers[21:72],hdr.read_pixel(91,100)[21:72]
-
     y_avg,y_std,x_avg = spec_avg(rfl,wvl,3)
+    plt.plot(wvl,rfl)
+    plt.plot(x_avg,y_avg)
+    plt.show()

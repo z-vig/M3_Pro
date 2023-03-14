@@ -1,8 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Created on Fri Feb 17 14:22:34 2023
-
-@author: zacha
+Various plotting functions for spectra
 """
 import matplotlib.pyplot as plt
 import matplotlib.ticker as tck
@@ -57,3 +55,19 @@ def fancy_spec_plot(fig,ax,x,y,**kwargs):
     ax.set_title(kwargs.get('title'),fontname="Times New Roman",fontsize=14)
     if type(kwargs.get('title')) != str:
         raise Exception(f'{error} title')
+    
+
+def plot_numpy_images(*args:np.ndarray,**kwargs:np.ndarray):
+    defaultKwargs = {"titles":[],"figsize":(8,16),"figtitle":'',"colorMap":'viridis'}
+    kwargs = {**defaultKwargs,**kwargs}
+
+    fig = plt.figure(figsize=kwargs.get("figsize"))
+    if kwargs.get('figtitle') != '':
+        fig.suptitle(kwargs.get('figtitle'))
+    col_num = len(args)
+    for num,image in enumerate(args):
+        ax = fig.add_subplot(1,col_num,num+1)
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.set_title(kwargs.get('titles')[num])
+        ax.imshow(image,cmap=kwargs.get('colorMap'))
