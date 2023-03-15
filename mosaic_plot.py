@@ -26,7 +26,7 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as tck
 import numpy as np
 import time
-from fancy_spec_plot import fancy_spec_plot
+from spec_plotting import fancy_spec_plot
 #from HySpec_Image_Processing import all_stats
 
 

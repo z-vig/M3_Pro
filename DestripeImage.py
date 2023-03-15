@@ -7,7 +7,7 @@ import numpy as np
 import os
 import pandas as pd
 from HySpec_Image_Processing import HDR_Image
-from fancy_spec_plot import fancy_spec_plot
+from spec_plotting import fancy_spec_plot
 import matplotlib.pyplot as plt
 from spec_average import spec_avg
 from scipy import interpolate as interp
@@ -15,7 +15,7 @@ import numpy.random as r
 from scipy import signal
 import spectral as sp
 import tifffile as tf
-from fancy_spec_plot import plot_numpy_images
+from spec_plotting import plot_numpy_images
 from copy import copy
 
 def destripe(image,box_size,**kwargs):
@@ -31,7 +31,7 @@ def destripe(image,box_size,**kwargs):
             yAvg,std,xAvg = spec_avg(image[row,:,band],xCoords,box_size)
             f = interp.CubicSpline(xAvg,yAvg)
             xtest = np.linspace(0,image.shape[1],304)
-            destripedImage[row,:,0] = f(xtest)
+            destripedImage[row,:,band] = f(xtest)
             if kwargs.get('plotImg') == True:
                 if n<3:
                     fig,ax = plt.subplots(1,1)
@@ -47,10 +47,10 @@ def destripe(image,box_size,**kwargs):
     
     print ('\n')
     
-    sharp = np.array(([0,-1,0],[-1,10,-1],[0,-1,0]))
-    destripedImage_sharp = signal.convolve2d(destripedImage[:,:,0],sharp)
+    # sharp = np.array(([0,-1,0],[-1,10,-1],[0,-1,0]))
+    # destripedImage_sharp = signal.convolve2d(destripedImage[:,:,0],sharp)
 
-    return destripedImage_sharp
+    return destripedImage
 
 if __name__ == "__main__":
     hdr = sp.envi.open(r'D:\Data/20230209T095534013597/extracted_files/hdr_files/m3g20090417t193320_v01_rfl/m3g20090417t193320_v01_rfl.hdr')
@@ -62,9 +62,10 @@ if __name__ == "__main__":
 
     image = hdr.read_bands(allowedIndices)
 
-    im1,im2,im3,im4 = destripe(image,3),destripe(image,5),destripe(image,7),destripe(image,10)
+    # im1,im2,im3,im4 = destripe(image,3),destripe(image,5),destripe(image,7),destripe(image,10)
+    img = destripe(image,7)
 
-    plot_numpy_images(im1,im2,im3,im4,titles=['3','5','7','10'],figtitle='Destriping Images')
+    plot_numpy_images(img[:,:,10],titles=['7'],figtitle='Destriping Images')
     plt.show()
 
 

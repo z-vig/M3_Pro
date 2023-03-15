@@ -24,7 +24,7 @@ import numpy as np
 import time
 
 
-from fancy_spec_plot import fancy_spec_plot
+from spec_plotting import fancy_spec_plot
 from moving_avg import moving_avg
 from M3_UnZip import M3_unzip
 

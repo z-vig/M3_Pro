@@ -4,7 +4,7 @@ from M3_UnZip import M3_unzip
 import os
 import matplotlib.pyplot as plt
 import numpy as np
-from fancy_spec_plot import fancy_spec_plot
+from spec_plotting import fancy_spec_plot
 from spec_average import spec_avg
 from scipy import interpolate as interp
 from matplotlib.animation import FuncAnimation
