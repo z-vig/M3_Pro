@@ -7,6 +7,8 @@ Created on Wed Feb 22 13:51:44 2023
 import matplotlib.pyplot as plt
 import numpy as np
 import math
+import spectral as sp
+from scipy.interpolate import LinearNDInterpolator as LNI
 
 def moving_avg(xdata,ydata,length,**kwargs):
     defaultKwargs = {'showPlot':False,'cType':'Gauss'}
@@ -89,17 +91,13 @@ def nd_avg(X,Y,z,box_size,**kwargs):
     defaultKwargs = {"Weighted":False}
     kwargs = {**defaultKwargs,**kwargs}
     
-    
     if X.shape != z.shape or Y.shape != z.shape:
         raise Exception('x and y must be mesh grids!')
     if box_size%2 == 0:
         raise Exception('Box Size must be odd!')
         
-    
     def weighted_average(array,weights):
         return np.sum(array*weights)/np.sum(weights)
-        
-    
         
     M,N = 1,box_size
     new_zArray = np.zeros(z.shape)
@@ -133,13 +131,12 @@ def nd_avg(X,Y,z,box_size,**kwargs):
         return new_zArray,xCoords,yCoords,zArray_dense
     
     elif kwargs.get('Weighted') == True:
-        weights = np.array(([1,1,1],[100,200,100],[1,1,1]))
-        weights = weights/sum(weights)
+        weights = np.array(([0,0,0,0,0],[1,1,1,1,1],[0,0,0,0,0]))
         
         for tile,x_arr,y_arr in zip(tiles,x_pts,y_pts):
-            if tile.shape == (3,3):
+            if tile.shape == (5,5):
                 zAvg = weighted_average(tile,weights)
-            elif tile.shape != (3,3):
+            elif tile.shape != (5,5):
                 zAvg = np.average(tile)
             xAvg = int(np.average(x_arr))
             yAvg = int(np.average(y_arr))
@@ -157,36 +154,45 @@ def nd_avg(X,Y,z,box_size,**kwargs):
                 
             
         return new_zArray,xCoords,yCoords,zArray_dense
+
+
+if __name__ == "__main__":
+    hdr = sp.envi.open(r"D:/Data/20230209T095534013597/extracted_files/hdr_files/m3g20090417t193320_v01_rfl/m3g20090417t193320_v01_rfl.hdr")
+    bandCenters = np.array(hdr.bands.centers)
+    allowedIndices = np.where((bandCenters>900)&(bandCenters<2600))[0]
+    print (allowedIndices)
+    allowedWvl = bandCenters[allowedIndices]
+    image = hdr.read_bands(allowedIndices)
+
+    yCoords,xCoords,wvlCoords = range(image.shape[0]),range(image.shape[1]),range(image.shape[2])
+    yMesh,wvlMesh = np.meshgrid(wvlCoords,yCoords)
+    print (image[:,0,:].shape)
+    print (yMesh.shape)
+
+    imageAvg,xAvg,yAvg,zDense = nd_avg(yMesh,wvlMesh,image[:,0,:],5,weighted=True)
+    print (xAvg.shape)
+
+    ptNum = xAvg.flatten().shape[0]
+    points = np.zeros((ptNum,2))
+    for n in range(ptNum):
+        points[n] = (xAvg.flatten()[n],yAvg.flatten()[n])
             
-    
-    #new_zArray = new_zArray[np.where(new_zArray!=0)].reshape(xCoords.shape)
+    linear_interp = LNI(points,zDense.flatten())
+    signalAvg_filled = linear_interp(yMesh,wvlMesh)
 
-    
+    def plt_stuff(xpt,ypt):
+        fig,ax = plt.subplots(1,1)
+        ax.plot(allowedWvl,image[xpt,ypt,:],label='Original')
+        ax.plot(allowedWvl,signalAvg_filled[xpt,:],label='Calculated Average')
+        y,std,x = spec_avg(image[xpt,ypt,:],allowedWvl,5)
+        ax.plot(x,y,label='Real Average')
+        ax.set_title(f'{xpt},{ypt}')
+        ax.legend()
 
-# =============================================================================
-# x = np.arange(0,10,1)
-# y = np.arange(0,10,1)
-# xMesh,yMesh = np.meshgrid(x,y)
-# z = np.random.choice(np.array((1,2)),(10,10))
-# z = locals()['z']
-# M,N=3,1
-# new_zArray,x,y,z_dense = nd_avg(xMesh,yMesh,z,3)
-# =============================================================================
-#new_zArray1,x1,y1,z_dense1 = nd_avg(xMesh,yMesh,z,3,Weighted=True)
+    plt_stuff(302,2)
+    plt_stuff(302,0)
+    plt.show()
 
-
-
-
-# =============================================================================
-# if __name__ == "__main__":
-#     x = np.arange(0,300,1)
-#     y = np.arange(0,300,1)
-#     xMesh,yMesh = np.meshgrid(x,y)
-#     z = np.random.choice(np.array((0,1)),(300,300))
-#     z = locals()['z']
-#     M,N=3,3
-#     new_zArray,x,y = nd_avg(xMesh,yMesh,z,3)
-# =============================================================================
     
     
 

@@ -23,7 +23,7 @@ def removeNAN(array):
     
     return array,np.array(nan_locations)
 
-def cubic_spline_image(signalArray,wavelengthValues,box_size,**kwargs):
+def splineFit(signalArray,wavelengthValues,box_size,**kwargs):
     defaultKwargs = {"saveAvg":False,"saveCubic":False,"findMin":False}
     kwargs = {**defaultKwargs,**kwargs}
 
@@ -44,9 +44,9 @@ centers from {wavelengthValues.min()}\u03BCm to {wavelengthValues.max()}\u03BCm 
 # =============================================================================
     imgLinInterp = np.zeros(signalArray.shape)
     imgCubicSpline = np.zeros(signalArray.shape)
-    for x in xCoords:
+    for count,x in enumerate(xCoords):
         print (f'\r{x+1}/{len(xCoords)} lines complete. ({x/len(xCoords):.0%})',end='\r')
-        signalAvg,xAvg,yAvg,signalAvg_dense = nd_avg(yMesh,wvlMesh,signalArray[:,x,:],box_size,Weighted=True)
+        signalAvg,xAvg,yAvg,signalAvg_dense = nd_avg(yMesh,wvlMesh,signalArray[:,x,:],box_size,weighted=True)
         
         ptNum = xAvg.flatten().shape[0]
         points = np.zeros((ptNum,2))
@@ -78,31 +78,41 @@ centers from {wavelengthValues.min()}\u03BCm to {wavelengthValues.max()}\u03BCm 
         if kwargs.get("findMin") == True:
             print ('Find Minimum is true')
         
-        
-        
     return imgLinInterp,imgCubicSpline
 
 if __name__ == "__main__":
     start = time.time()
     
-    hdr = sp.envi.open(r"/run/media/zvig/My Passport/Data/20230209T095534013597/extracted_files/hdr_files/m3g20090417t193320_v01_rfl/m3g20090417t193320_v01_rfl.hdr")
+    hdr = sp.envi.open(r"D:\Data/20230209T095534013597/extracted_files/hdr_files/m3g20090417t193320_v01_rfl/m3g20090417t193320_v01_rfl.hdr")
     
     bandCenters = np.array(hdr.bands.centers)
     allowedIndices = np.where((bandCenters>900)&(bandCenters<2600))[0]
     minIndex,maxIndex = allowedIndices.min(),allowedIndices.max()
     
-    wavelengthValues = bandCenters[allowedIndices]
+    allowedWvl = bandCenters[allowedIndices]
     signalArray = hdr.read_bands(allowedIndices)
-    imgAverage,imgCubic = cubic_spline_image(signalArray,wavelengthValues,5)
-    
-    print ('\nRemoving NANs...')
-    imgAverage_NoNAN,nan_loc = removeNAN(imgAverage)
-    
-    maxdel = len(wavelengthValues)-nan_loc[2,1]
-    wvl = np.delete(wavelengthValues,slice(0,nan_loc[2,0]))
-    wvl = np.delete(wvl,slice(len(wvl)-maxdel,len(wvl)))
+    imgAverage,imgCubic = splineFit(signalArray,allowedWvl,5)
 
-    np.save(r"/run/media/zvig/My Passport/Data/cubic_spline_image.npy",imgCubic)
+    def plt_stuff(xpt,ypt):
+        fig,ax = plt.subplots(1,1)
+        ax.plot(allowedWvl,signalArray[xpt,ypt,:],label='Original')
+        ax.plot(allowedWvl,imgAverage[xpt,ypt,:],label='Calculated Average')
+        y,std,x = spec_avg(signalArray[xpt,ypt,:],allowedWvl,5)
+        ax.plot(x,y,label='Real Average')
+        ax.set_title(f'{xpt},{ypt}')
+        ax.legend()
+
+    plt_stuff(302,2)
+    plt_stuff(302,0)
+    plt.show()
+    # print ('\nRemoving NANs...')
+    # imgAverage_NoNAN,nan_loc = removeNAN(imgAverage)
+    
+    # maxdel = len(wavelengthValues)-nan_loc[2,1]
+    # wvl = np.delete(wavelengthValues,slice(0,nan_loc[2,0]))
+    # wvl = np.delete(wvl,slice(len(wvl)-maxdel,len(wvl)))
+
+    #np.save(r"/run/media/zvig/My Passport/Data/cubic_spline_image.npy",imgCubic)
     
     end = time.time()
     runtime = end-start

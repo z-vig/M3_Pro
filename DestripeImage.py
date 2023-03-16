@@ -63,7 +63,7 @@ if __name__ == "__main__":
     image = hdr.read_bands(allowedIndices)
 
     # im1,im2,im3,im4 = destripe(image,3),destripe(image,5),destripe(image,7),destripe(image,10)
-    img = destripe(image,7)
+    img = destripe(image,7,plotImg=True)
 
     plot_numpy_images(img[:,:,10],titles=['7'],figtitle='Destriping Images')
     plt.show()
