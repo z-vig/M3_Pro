@@ -38,13 +38,14 @@ class HDR_Image():
     # Constructor method
     def __init__(self, path):
         self.hdr = sp.envi.open(path)
-        data_str = self.hdr.fid.name[find(self.hdr.fid.name, '\\')[-1]+1:len(self.hdr.fid.name)-4]
-        date = f"{data_str[3:7]}/{data_str[7:9]}/{data_str[9:11]}"
-        date = date.replace('/','-')
-        time = f"{data_str[12:14]}:{data_str[14:16]}:{data_str[16:18]}"
-        time = time.replace(':','-')
+        data_str = self.hdr.filename
+        dateTimeIndex = find(data_str,'t')[-1]
+
+        date = f"{data_str[dateTimeIndex-8:dateTimeIndex-4]}-{data_str[dateTimeIndex-4:dateTimeIndex-2]}-{data_str[dateTimeIndex-2:dateTimeIndex]}"
+
+        time = f"{data_str[dateTimeIndex+1:dateTimeIndex+3]}-{data_str[dateTimeIndex+3:dateTimeIndex+5]}-{data_str[dateTimeIndex+5:dateTimeIndex+7]}"
+
         date_time = date+'_'+time
-        
         
         if data_str[2] == 'g':
             obs_type = 'Global'

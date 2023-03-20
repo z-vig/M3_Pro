@@ -8,6 +8,7 @@ import spec_plotting
 import matplotlib.pyplot as plt
 import DestripeImage
 from copy import copy
+import get_pixel_mosaic
 
 def find(s, ch):
     return [i for i, ltr in enumerate(s) if ltr == ch]
@@ -92,6 +93,20 @@ class HDR_Image():
 
         return self.destripeImage
     
+    def get_average_rfl(self, mosaicPixels, **kwargs):
+        defaultKwargs = {'plotAverage':False}
+        kwargs = {**defaultKwargs,**kwargs}
+
+        mosaicPixels_allowed = mosaicPixels[self.allowedIndices,:]
+        means = mosaicPixels_allowed.mean(axis=1)
+        std = mosaicPixels_allowed.std(axis=1)
+
+        if kwargs.get('plotAverage') == True:
+            plt.plot(self.allowedWavelengths,means,color='red')
+            plt.fill_between(self.allowedWavelengths,means-std,means+std,color='gray',alpha=0.5)
+
+        return means,std
+    
     def shadow_correction(self,R_bi:np.ndarray,shadowLocations:np.ndarray,**kwargs)->np.ndarray:
         defaultKwargs = {'imshow':False}
         kwargs = {**defaultKwargs,**kwargs}
@@ -113,19 +128,33 @@ class HDR_Image():
         
 
 
-        
-        
 if __name__ == "__main__":
     start = time.time()
 
     img1 = HDR_Image(r"D:\Data/20230209T095534013597/extracted_files/hdr_files/m3g20090417t193320_v01_rfl/m3g20090417t193320_v01_rfl.hdr")
-        
+    
     print (f'Image {img1.datetime} Loaded:\n\
     Analyzed Wavelengths: {img1.allowedWavelengths}')
     originalImage = img1.original_image()
+
     print ('Destriping Image...')
     destripeImage = img1.destripe_image(imshow=True)
-    print (f'Image destriped at {time.time()-start}')
+    print (f'Image destriped at {time.time()-start:.1f} seconds')
+
+    print ('Obtaining image and mosaic statistics...')
+    shadowDict,imageStats,mosaicPixels,mosaicStats = get_pixel_mosaic.create_arrays(r"D:/Data/20230209T095534013597/",r"D:/Data/Locate_Ice_Saves/")
+    print (f'Image and mosaic statistics obtained at {time.time()-start:.1f} seconds')
+
+    print ('Calculating Average Mosaic Reflectance...')
+    averageRfl,stdRfl = img1.get_average_rfl(mosaicPixels)
+    print (f'Average reflectance obtained at {time.time()-start:.1f} seconds')
+
+    print ('Making Li et al., 2018 Shadow Correction...')
+    correctedImage = img1.shadow_correction(averageRfl,shadowDict[img1.datetime()])
+    print (f'Correction completed at {time.time()-start:.1f} seconds')
+
+
+    
 
     end = time.time()
     runtime = end-start
