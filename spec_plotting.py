@@ -8,8 +8,8 @@ import numpy as np
 
 
 def fancy_spec_plot(fig,ax,x,y,**kwargs):
-    defaultKwargs = {'std':np.zeros(len(y)),'ylabel':False,'xlabel':False,'title':'','minorticks':True,'wvl_lim':(1000,2500),
-                     'line_style':'solid','line_color':'red','std_color':'black','label':'plot'}
+    defaultKwargs = {'std':np.zeros(len(y)),'ylabel':'Reflectance','xlabel':'Wavelength \u03BCm','title':None,'minorticks':True,'wvl_lim':(1000,2500),
+                     'line_style':'solid','line_color':'red','std_color':'black','label':'plot','alpha':1}
     kwargs = {**defaultKwargs,**kwargs}
     error = "Keyword Error in"
     
@@ -18,7 +18,7 @@ def fancy_spec_plot(fig,ax,x,y,**kwargs):
     
     ##Plotting Line and/or Standard Deviation                    
     ax.fill_between(x,y-kwargs.get('std'),y+kwargs.get('std'),color=kwargs.get('std_color'),alpha=0.3)
-    ax.plot(x,y,color=kwargs.get('line_color'),ls=kwargs.get('line_style'),linewidth=0.8,label=kwargs.get('label'))
+    ax.plot(x,y,color=kwargs.get('line_color'),ls=kwargs.get('line_style'),linewidth=0.8,label=kwargs.get('label'),alpha=kwargs.get('alpha'))
     if type(kwargs.get('std')) != np.ndarray:
         raise Exception(f'{error} std')
     
@@ -28,10 +28,12 @@ def fancy_spec_plot(fig,ax,x,y,**kwargs):
         raise Exception(f'{error} wvl_lim')
     
     if kwargs.get('minorticks') == True:
-        ax.set_xticks(np.linspace(kwargs.get('wvl_lim')[0],kwargs.get('wvl_lim')[1],4),fontname="Source Code Pro")
+        x_locations = np.linspace(kwargs.get('wvl_lim')[0],kwargs.get('wvl_lim')[1],4)
+        y_locations = np.arange(round(min(y)-0.1*min(y),2),round(max(y)+0.1*max(y),2),
+                                round(((max(y)+0.1*max(y)-(min(y)-0.1*min(y)))/2),3)).round(2)
+        ax.set_xticks(x_locations,labels=x_locations,fontname="Times New Roman")
         ax.xaxis.set_minor_locator(tck.MultipleLocator(100))
-        ax.set_yticks(np.arange(round(min(y)-0.1*min(y),2),round(max(y)+0.1*max(y),2),
-                                round(((max(y)+0.1*max(y)-(min(y)-0.1*min(y)))/2),3)),fontname="Source Code Pro")
+        ax.set_yticks(y_locations,labels=y_locations,fontname="Times New Roman")
         ax.yaxis.set_minor_locator(tck.MultipleLocator(0.01))
     elif kwargs.get('minorticks') == False:
         pass
@@ -51,10 +53,13 @@ def fancy_spec_plot(fig,ax,x,y,**kwargs):
         pass
     else:
         raise Exception(f'{error} xlabel')
-        
-    ax.set_title(kwargs.get('title'),fontname="Times New Roman",fontsize=14)
-    if type(kwargs.get('title')) != str:
-        raise Exception(f'{error} title')
+    
+    if kwargs.get('title') != None:
+        ax.set_title(kwargs.get('title'),fontname="Times New Roman",fontsize=14)
+    elif kwargs.get('title') == None:
+        pass
+
+    ax.legend()
     
 
 def plot_numpy_images(*args:np.ndarray,**kwargs:np.ndarray):

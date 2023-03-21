@@ -9,6 +9,8 @@ import matplotlib.pyplot as plt
 import DestripeImage
 from copy import copy
 import get_pixel_mosaic
+import cubic_spline_image as csi
+import pandas as pd
 
 def find(s, ch):
     return [i for i, ltr in enumerate(s) if ltr == ch]
@@ -77,7 +79,6 @@ class HDR_Image():
         if kwargs.get('imshow') == True:
             spec_plotting.plot_numpy_images(self.originalImage[:,:,0],self.originalImage[:,:,1],
                                             titles=[f'{self._allowedWvl[0]}\u03BCm',f'{self._allowedWvl[1]}\u03BCm'])
-            plt.show()
         
         return self.originalImage
     
@@ -89,7 +90,6 @@ class HDR_Image():
         if kwargs.get('imshow') == True:
             spec_plotting.plot_numpy_images(self.originalImage[:,:,0],self.destripeImage[:,:,1],
                                             titles=['Original','Destriped Image'])
-            plt.show()
 
         return self.destripeImage
     
@@ -111,21 +111,146 @@ class HDR_Image():
         defaultKwargs = {'imshow':False}
         kwargs = {**defaultKwargs,**kwargs}
 
-        self.correctedImage = copy(self.originalImage)
+        self.correctedImage = copy(self.destripeImage)
 
-        R_bi = R_bi[self.allowedIndices]
-        xShade,yShade = np.where(shadowLocations[0]==0)
-        xLight,yLight = np.where(shadowLocations[0]!=0)
+        xShade,yShade = np.where(shadowLocations==0)[0],np.where(shadowLocations==0)[1]
+        xLight,yLight = np.where(shadowLocations!=0)[0],np.where(shadowLocations!=0)[1]
 
         self.correctedImage[xShade,yShade,:] = self.correctedImage[xShade,yShade,:]/R_bi
 
         if kwargs.get('imshow') == True:
             spec_plotting.plot_numpy_images(self.originalImage[:,:,0],self.correctedImage[:,:,0],
                                             titles=['Original','Li et al., 2018\nCorrection'])
-            plt.show()
         
         return self.correctedImage
+
+    def spectrum_smoothing(self,**kwargs)->np.ndarray:
+        defaultKwargs = {'imshow':False,'specshow':False,'plottedPoints':(91,100)}
+        kwargs = {**defaultKwargs,**kwargs}
+
+        self.avgSpectrumImage,self.smoothSpectrumImage = csi.splineFit(self.correctedImage,self.allowedWavelengths,5)
+        if kwargs.get('imshow') == True:
+            spec_plotting.plot_numpy_images(self.originalImage[:,:,0],self.correctedImage[:,:,0],self.smoothSpectrumImage[:,:,0],
+                                            titles=['Original','Li et al., 2018\nCorrection','Smoothed Spectra'])
+        if kwargs.get('imshow') == True:
+            fig,ax = plt.subplots(1,1)
+            x,y = kwargs.get('plottedPoints')[0],kwargs.get('plottedPoints')[1]
+            spec_plotting.fancy_spec_plot(fig,ax,self.allowedWavelengths,self.smoothSpectrumImage[x,y,:],
+                                          ylabel='Reflectance',xlabel='Wavelength \u03BCm',title=f'Smoothed Spectrum of point ({x},{y})',label = 'Cubic Spline Fit')
+            spec_plotting.fancy_spec_plot(fig,ax,self.allowedWavelengths,self.originalImage[x,y,:],label='Original',line_color='black')
+            spec_plotting.fancy_spec_plot(fig,ax,self.allowedWavelengths,self.correctedImage[x,y,:],label='Corrected Spectrum',line_color='green')
+
+        return self.avgSpectrumImage,self.smoothSpectrumImage
         
+    def locate_ice(self,**kwargs)->np.ndarray:
+        defaultKwargs = {'imshow':False,'specshow':False,'plottedPoints':(91,100)}
+        kwargs = {**defaultKwargs,**kwargs}
+
+        def get_minima(wvlValues:'np.ndarray',img:'np.ndarray',x:'int', y:'int',**kwargs) -> 'tuple':
+            defaultKwargs = {"plotMins":False}
+            kwargs = {**defaultKwargs,**kwargs}
+
+            rflValues = img[x,y,:]
+
+            diff_list = []
+            wvlMinima = ()
+            for n in range(0, len(rflValues)):
+                if n < len(rflValues)-1:
+                    diff = rflValues[n]-rflValues[n+1]
+                    diff_list.append(diff)
+                    if n > 2 and diff < 0 and diff_list[-2] > 0:
+                        wvlMinima += (wvlValues[n],)
+            
+            ##Check if minima are indicative of water spectrum
+            validWvl = np.array(([1.242,1.323],[1.503,1.659],[1.945,2.056]))
+            waterBands = ()
+            for val in wvlMinima:
+                if any(val/1000 > i and val/1000 < j for i,j in zip(validWvl[:,0],validWvl[:,1])):
+                    waterBands += (val,)
+                else:
+                    pass
+            
+            if kwargs.get('plotMins') == True:
+                fig,ax = plt.subplots(1,1)
+                ax.plot(wvlValues,rflValues,label='Cubic Spline Fit')
+                for val in wvlMinima:
+                    ax.vlines(val,rflValues.min(),rflValues.max())
+
+            if len(wvlMinima) == 3 and len(waterBands) == 3 and np.average(rflValues)>0.01:
+                return waterBands,True,False
+            elif len(wvlMinima) == 3 and len(waterBands) == 3 and np.average(rflValues)<0.01:
+                return waterBands,True,True
+            else:
+                return wvlMinima,False,True
+            
+        self.waterPixels = np.zeros([1,5]).astype(int)
+        self.waterPixels_noise = np.zeros([1,5]).astype(int)
+        xCoords,yCoords = range(int(self.smoothSpectrumImage.shape[0])),range(int(self.smoothSpectrumImage.shape[1]))
+        xMesh,yMesh = np.meshgrid(xCoords,yCoords)
+
+        num = 0
+        for x,y in zip(xMesh.flatten(),yMesh.flatten()):
+            if num < 1000000:
+                print (f'\r{num+1}/{len(xMesh.flatten())} Points Processed ({num/len(xMesh.flatten()):.0%})',end='\r')
+                waterBands,add,noise = get_minima(self.allowedWavelengths,self.smoothSpectrumImage,x,y)
+                if add == True and noise == False:
+                    self.waterPixels = np.concatenate([self.waterPixels,np.array([(x,y,*waterBands)])])
+                elif add == True and noise == True:
+                    self.waterPixels_noise = np.concatenate([self.waterPixels_noise,np.array([(x,y,*waterBands)])])
+                elif add == False:
+                    pass
+                num+=1
+            else:
+                print (f'\nLoop broken at {num}')
+                break
+            
+        waterDf = pd.DataFrame(self.waterPixels)
+        waterDf.columns = ['x','y','Band 1','Band 2','Band 3']
+        waterDf.drop(waterDf.index[0],inplace=True)
+        waterDf.set_index(['x','y'],inplace=True)
+
+
+        def plot_correction_minima(x,y,**kwargs):
+            defaultKwargs = {'showMinText':True}
+            kwargs = {**defaultKwargs,**kwargs}
+
+            fig,ax = plt.subplots(1,1)
+            spec_plotting.fancy_spec_plot(fig,ax,self.allowedWavelengths,self.originalImage[x,y,:],label='Original',color='k',
+                                          ylabel='Reflectance',xlabel='Wavelength (\u03BCm)')
+            spec_plotting.fancy_spec_plot(fig,ax,self.allowedWavelengths,self.correctedImage[x,y,:],label='Corrected',line_color='red',alpha=0.75)
+            spec_plotting.fancy_spec_plot(fig,ax,self.allowedWavelengths,self.avgSpectrumImage[x,y,:],label='Average',line_color='red',line_style='--')
+            spec_plotting.fancy_spec_plot(fig,ax,self.allowedWavelengths,self.smoothSpectrumImage[x,y,:],label='Cubic Spline',line_color='Green',
+                                          title=f'Possible Water Spectra at ({x},{y})')
+
+            if (x,y) in waterDf.index:
+                wvlMin = waterDf.loc[(x,y)]
+                if kwargs.get('showMinText') == True:
+                    for val in wvlMin:
+                        ax.vlines(val,self.smoothSpectrumImage[x,y,:].min(),self.smoothSpectrumImage[x,y,:].max(),ls='-.')
+                        ax.text(val-100,self.smoothSpectrumImage[x,y,:].max()+0.05*self.smoothSpectrumImage[x,y,:].max(),f'{val:.0f} \u03BCm')
+
+            ax.legend()
+
+        if kwargs.get('specshow') == True:
+            plot_correction_minima(kwargs.get('plottedPoints')[0],kwargs.get('plottedPoints')[1])
+
+        water_where = np.zeros(self.originalImage.shape)
+        water_where_overlaid = copy(self.originalImage)
+        water_bandDepth = copy(self.originalImage)
+        for x,y in waterDf.index:
+            water_where[int(x),int(y),:] = np.ones((len(self.allowedWavelengths)))
+            water_where_overlaid[int(x),int(y),:] = np.ones((len(self.allowedWavelengths)))
+
+        if kwargs.get('imshow') == True:
+            spec_plotting.plot_numpy_images(self.originalImage[:,:,32],self.smoothSpectrumImage[:,:,32],
+                                            self.smoothSpectrumImage[:,:,32],water_where[:,:,32], water_where_overlaid[:,:,32],
+                                            titles=['Original','Average\n(Shade Corrected)','Cubic Spline\n(Shade Corrected)',
+                                                    'Possible H\u2082O\nPixels','Possible H\u2082O\nPixels'])
+        
+        return water_where,self.waterPixels_noise,self.waterPixels,waterDf
+
+    
+
 
 
 if __name__ == "__main__":
@@ -150,11 +275,25 @@ if __name__ == "__main__":
     print (f'Average reflectance obtained at {time.time()-start:.1f} seconds')
 
     print ('Making Li et al., 2018 Shadow Correction...')
-    correctedImage = img1.shadow_correction(averageRfl,shadowDict[img1.datetime()])
+    correctedImage = img1.shadow_correction(averageRfl,shadowDict[img1.datetime])
     print (f'Correction completed at {time.time()-start:.1f} seconds')
 
+    print('Smoothing spectra...')
+    avgSpecImg,smoothSpecImg = img1.spectrum_smoothing(imshow=True,specshow=True,plottedPoints = (91,100))
+    print (f'Smooth spectra obtained at {time.time()-start:.1f} seconds')
 
-    
+    print('Locating water-like spectra...')
+    waterLocations,waterPixels_noise,waterPixels,waterDf=img1.locate_ice(imshow=True)
+    print (f'Water-like spectra located at {time.time()-start:.1f} seconds')
+
+    plt.show()
+
+    waterDf.to_csv(r'D:/Data/Locate_Ice_Saves/water_locations.csv')
+    np.save(r'D:/Data/Locate_Ice_Saves/Original_Image.npy',originalImage)
+    np.save(r'D:/Data/Locate_Ice_Saves/Destriped_Image.npy',destripeImage)
+    np.save(r'D:/Data/Locate_Ice_Saves/Correced_Image.npy',correctedImage)
+    np.save(r'D:/Data/Locate_Ice_Saves/Smooth_Spectrum_Image.npy',smoothSpecImg)
+    np.save(r'D:/Data/Locate_Ice_Saves/Water_Locations.npy',waterLocations)
 
     end = time.time()
     runtime = end-start
