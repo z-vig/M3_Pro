@@ -11,6 +11,8 @@ from copy import copy
 import get_pixel_mosaic
 import cubic_spline_image as csi
 import pandas as pd
+import tifffile as tf
+import os
 
 def find(s, ch):
     return [i for i, ltr in enumerate(s) if ltr == ch]
@@ -288,12 +290,27 @@ if __name__ == "__main__":
 
     plt.show()
 
-    waterDf.to_csv(r'D:/Data/Locate_Ice_Saves/water_locations.csv')
-    np.save(r'D:/Data/Locate_Ice_Saves/Original_Image.npy',originalImage)
-    np.save(r'D:/Data/Locate_Ice_Saves/Destriped_Image.npy',destripeImage)
-    np.save(r'D:/Data/Locate_Ice_Saves/Correced_Image.npy',correctedImage)
-    np.save(r'D:/Data/Locate_Ice_Saves/Smooth_Spectrum_Image.npy',smoothSpecImg)
-    np.save(r'D:/Data/Locate_Ice_Saves/Water_Locations.npy',waterLocations)
+    print ('Saving Data...')
+    try:
+        os.mkdir(f'D:/Data/Locate_Ice_Saves/{img1.datetime}')
+    except:
+        pass
+
+    waterDf.to_csv(f'D:/Data/Locate_Ice_Saves/{img1.datetime}/water_locations.csv')
+    np.save(f'D:/Data/Locate_Ice_Saves/{img1.datetime}/Original_Image.npy',originalImage)
+    np.save(f'D:/Data/Locate_Ice_Saves/{img1.datetime}/Destriped_Image.npy',destripeImage)
+    np.save(f'D:/Data/Locate_Ice_Saves/{img1.datetime}/Correced_Image.npy',correctedImage)
+    np.save(f'D:/Data/Locate_Ice_Saves/{img1.datetime}/Smooth_Spectrum_Image.npy',smoothSpecImg)
+    np.save(f'D:/Data/Locate_Ice_Saves/{img1.datetime}/Water_Locations.npy',waterLocations)
+    print (f'Data saved at {time.time()-start} seconds')
+
+    print ('Saving Images...')
+    tf.imwrite(f'D:/Data/Locate_Ice_Saves/{img1.datetime}/original.tif',originalImage)
+    tf.imwrite(f'D:/Data/Locate_Ice_Saves/{img1.datetime}/destriped.tif',destripeImage)
+    tf.imwrite(f'D:/Data/Locate_Ice_Saves/{img1.datetime}/corrected.tif',correctedImage)
+    tf.imwrite(f'D:/Data/Locate_Ice_Saves/{img1.datetime}/smoothed.tif',smoothSpecImg)
+    tf.imwrite(f'D:/Data/Locate_Ice_Saves/{img1.datetime}/water_locations.tif',waterLocations)
+
 
     end = time.time()
     runtime = end-start
