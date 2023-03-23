@@ -3,7 +3,6 @@ import numpy as np
 import os
 import pandas as pd
 import Locate_Ice
-from HySpec_Image_Processing import HDR_Image
 from M3_UnZip import M3_unzip
 import time
 

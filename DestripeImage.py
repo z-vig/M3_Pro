@@ -6,10 +6,9 @@ Script for Destriping M3 images
 import numpy as np
 import os
 import pandas as pd
-from HySpec_Image_Processing import HDR_Image
 from spec_plotting import fancy_spec_plot
 import matplotlib.pyplot as plt
-from spec_average import spec_avg
+from spectrum_averaging import spec_avg
 from scipy import interpolate as interp
 import numpy.random as r
 from scipy import signal
