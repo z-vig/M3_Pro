@@ -8,7 +8,7 @@ import os
 import pandas as pd
 from spec_plotting import fancy_spec_plot
 import matplotlib.pyplot as plt
-from spec_average import spec_avg
+from spectrum_averaging import spec_avg
 from scipy import interpolate as interp
 import numpy.random as rand
 from scipy import signal
