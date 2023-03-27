@@ -46,7 +46,6 @@ def create_arrays(dataFolder,saveFolder):
     print (f'List of shadows arrays filled at {time.time()-start} seconds')
 
     ##Getting wavelength, average and standard deviation of each image
-
     print ('Getting individual image statistics...')
 
     try:
@@ -65,7 +64,8 @@ def create_arrays(dataFolder,saveFolder):
             imageStatsArray[:,:,n] = imageStatistics
             print (obj.datetime+'_statistics.csv is already saved.')
             continue
-        wvl, avg, std = obj.get_average_rfl(arr,avg_by_img=True)
+        avg,std = obj.get_average_rfl(arr)
+        wvl = obj.allWavelengths
         data_arr[:,:] = np.array([wvl, avg, std]).T
         imageStatistics = pd.DataFrame(data_arr)
         imageStatsArray[:,:,n] = imageStatistics.to_numpy()
@@ -88,7 +88,8 @@ def create_arrays(dataFolder,saveFolder):
             print ('Mosaic Pixel Array already saved')
     except:
         for obj,array in zip(obj_list,shadowImage_arrayDict.values()):
-            wvl,newImage_array = obj.get_average_rfl(array,avg_by_img=False)
+            img = obj.hdr.read_bands(range(len(obj.allWavelengths)-2))
+            newImage_array = img.reshape(img.shape[0]*img.shape[1],83).T
             mosaicArray = np.concatenate((mosaicArray,newImage_array),axis=1)
             im_id = obj.datetime
             print (f'Image {im_id} complete ({n+1}/{len(obj_list)})')
@@ -113,6 +114,6 @@ def create_arrays(dataFolder,saveFolder):
 
 if __name__ == "__main__":
     print('Creating image and mosaic statistics...')
-    shadow,imstats,mosaic,mosaicStats = create_arrays(r"D:/Data/20230209T095534013597/",r'D:/Data/')
+    shadow,imstats,mosaic,mosaicStats = create_arrays(r"E:/Data/20230209T095534013597/",r'E:/Data/Locate_Ice_Saves/')
     print (len(shadow))
     print ('Statistics calculated! Success!')

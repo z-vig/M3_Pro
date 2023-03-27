@@ -13,6 +13,7 @@ import cubic_spline_image as csi
 import pandas as pd
 import tifffile as tf
 import os
+import M3_UnZip
 
 def find(s, ch):
     return [i for i, ltr in enumerate(s) if ltr == ch]
@@ -53,6 +54,9 @@ class HDR_Image():
         self.meta_data_dict = {"ObservationType": obs_type,
                                "DataType": data_type, "Date(Y/M/D)": date, "Time": time}
         
+        self.bandCenters = np.array(self.hdr.bands.centers)
+        self.allowedIndices = np.where((self.bandCenters>900)&(self.bandCenters<2600))[0]
+        
     # String print method
     def __str__(self):
         return f"HDR Image Class: {self.hdr.fid.name[find(self.hdr.fid.name,'/')[-1]+1:len(self.hdr.fid.name)-4]}"
@@ -68,10 +72,13 @@ class HDR_Image():
     
     @property
     def allowedWavelengths(self):
-        bandCenters = np.array(self.hdr.bands.centers)
-        self.allowedIndices = np.where((bandCenters>900)&(bandCenters<2600))[0]
-        self._allowedWvl = bandCenters[self.allowedIndices]
+        self._allowedWvl = self.bandCenters[self.allowedIndices]
         return self._allowedWvl
+    
+    @property
+    def allWavelengths(self):
+        self._allWavelengths = self.bandCenters
+        return self._allWavelengths
 
     def original_image(self,**kwargs):
         defaultKwargs = {'imshow':False}
@@ -88,6 +95,7 @@ class HDR_Image():
         defaultKwargs = {'imshow':False}
         kwargs = {**defaultKwargs,**kwargs}
 
+        print (self.allowedIndices)
         self.destripeImage = DestripeImage.destripe(self.originalImage,7)
         if kwargs.get('imshow') == True:
             spec_plotting.plot_numpy_images(self.originalImage[:,:,0],self.destripeImage[:,:,1],
@@ -257,59 +265,77 @@ class HDR_Image():
 
 if __name__ == "__main__":
     start = time.time()
+    hdrFileList,hdrFilesPath = M3_UnZip.M3_unzip(select=True)
+    totalImages = len(hdrFileList)
+    img_num = 1
+    print (f'{totalImages} images are about to be processed. Estimated time: {totalImages*15} minutes')
+    for file in hdrFileList:
+        imgStartTime = time.time()
+        img = HDR_Image(file)
+        
+        print (f'Image {img.datetime} Loaded:\n\
+        Analyzed Wavelengths: {img.allowedWavelengths}')
+        originalImage = img.original_image()
 
-    img1 = HDR_Image(r"D:\Data/20230209T095534013597/extracted_files/hdr_files/m3g20090417t193320_v01_rfl/m3g20090417t193320_v01_rfl.hdr")
-    
-    print (f'Image {img1.datetime} Loaded:\n\
-    Analyzed Wavelengths: {img1.allowedWavelengths}')
-    originalImage = img1.original_image()
+        print ('Destriping Image...')
+        destripeImage = img.destripe_image(imshow=True)
+        print (f'Image destriped at {time.time()-start:.1f} seconds')
 
-    print ('Destriping Image...')
-    destripeImage = img1.destripe_image(imshow=True)
-    print (f'Image destriped at {time.time()-start:.1f} seconds')
+        print ('Obtaining image and mosaic statistics...')
+        shadowDict,imageStats,mosaicPixels,mosaicStats = get_pixel_mosaic.create_arrays(r"E:/Data/20230209T095534013597/",r"E:/Data/Locate_Ice_Saves/")
+        print (f'Image and mosaic statistics obtained at {time.time()-start:.1f} seconds')
 
-    print ('Obtaining image and mosaic statistics...')
-    shadowDict,imageStats,mosaicPixels,mosaicStats = get_pixel_mosaic.create_arrays(r"D:/Data/20230209T095534013597/",r"D:/Data/Locate_Ice_Saves/")
-    print (f'Image and mosaic statistics obtained at {time.time()-start:.1f} seconds')
+        print ('Calculating Average Mosaic Reflectance...')
+        averageRfl,stdRfl = img.get_average_rfl(mosaicPixels)
+        print (f'Average reflectance obtained at {time.time()-start:.1f} seconds')
 
-    print ('Calculating Average Mosaic Reflectance...')
-    averageRfl,stdRfl = img1.get_average_rfl(mosaicPixels)
-    print (f'Average reflectance obtained at {time.time()-start:.1f} seconds')
+        print ('Making Li et al., 2018 Shadow Correction...')
+        correctedImage = img.shadow_correction(averageRfl,shadowDict[img.datetime])
+        print (f'Correction completed at {time.time()-start:.1f} seconds')
 
-    print ('Making Li et al., 2018 Shadow Correction...')
-    correctedImage = img1.shadow_correction(averageRfl,shadowDict[img1.datetime])
-    print (f'Correction completed at {time.time()-start:.1f} seconds')
+        print('Smoothing spectra...')
+        avgSpecImg,smoothSpecImg = img.spectrum_smoothing(imshow=True,specshow=True,plottedPoints = (91,100))
+        print (f'Smooth spectra obtained at {time.time()-start:.1f} seconds')
 
-    print('Smoothing spectra...')
-    avgSpecImg,smoothSpecImg = img1.spectrum_smoothing(imshow=True,specshow=True,plottedPoints = (91,100))
-    print (f'Smooth spectra obtained at {time.time()-start:.1f} seconds')
+        print('Locating water-like spectra...')
+        waterLocations,waterPixels_noise,waterPixels,waterDf=img.locate_ice(imshow=True)
+        print (f'Water-like spectra located at {time.time()-start:.1f} seconds')
 
-    print('Locating water-like spectra...')
-    waterLocations,waterPixels_noise,waterPixels,waterDf=img1.locate_ice(imshow=True)
-    print (f'Water-like spectra located at {time.time()-start:.1f} seconds')
+        #plt.show()
 
-    plt.show()
 
-    print ('Saving Data...')
-    try:
-        os.mkdir(f'D:/Data/Locate_Ice_Saves/{img1.datetime}')
-    except:
-        pass
+        print ('Saving Data...')
+        try:
+            os.mkdir(f'E:/Data/Locate_Ice_Saves/{img.datetime}')
+        except:
+            pass
 
-    waterDf.to_csv(f'D:/Data/Locate_Ice_Saves/{img1.datetime}/water_locations.csv')
-    np.save(f'D:/Data/Locate_Ice_Saves/{img1.datetime}/Original_Image.npy',originalImage)
-    np.save(f'D:/Data/Locate_Ice_Saves/{img1.datetime}/Destriped_Image.npy',destripeImage)
-    np.save(f'D:/Data/Locate_Ice_Saves/{img1.datetime}/Correced_Image.npy',correctedImage)
-    np.save(f'D:/Data/Locate_Ice_Saves/{img1.datetime}/Smooth_Spectrum_Image.npy',smoothSpecImg)
-    np.save(f'D:/Data/Locate_Ice_Saves/{img1.datetime}/Water_Locations.npy',waterLocations)
-    print (f'Data saved at {time.time()-start} seconds')
+        waterDf.to_csv(f'E:/Data/Locate_Ice_Saves/{img.datetime}/water_locations.csv')
+        np.save(f'E:/Data/Locate_Ice_Saves/{img.datetime}/Original_Image.npy',originalImage)
+        np.save(f'E:/Data/Locate_Ice_Saves/{img.datetime}/Destriped_Image.npy',destripeImage)
+        np.save(f'E:/Data/Locate_Ice_Saves/{img.datetime}/Correced_Image.npy',correctedImage)
+        np.save(f'E:/Data/Locate_Ice_Saves/{img.datetime}/Smooth_Spectrum_Image.npy',smoothSpecImg)
+        np.save(f'E:/Data/Locate_Ice_Saves/{img.datetime}/Water_Locations.npy',waterLocations)
+        print (f'Data saved at {time.time()-start} seconds')
 
-    print ('Saving Images...')
-    tf.imwrite(f'D:/Data/Locate_Ice_Saves/{img1.datetime}/original.tif',originalImage)
-    tf.imwrite(f'D:/Data/Locate_Ice_Saves/{img1.datetime}/destriped.tif',destripeImage)
-    tf.imwrite(f'D:/Data/Locate_Ice_Saves/{img1.datetime}/corrected.tif',correctedImage)
-    tf.imwrite(f'D:/Data/Locate_Ice_Saves/{img1.datetime}/smoothed.tif',smoothSpecImg)
-    tf.imwrite(f'D:/Data/Locate_Ice_Saves/{img1.datetime}/water_locations.tif',waterLocations)
+        print ('Saving Images...')
+        tf.imwrite(f'E:/Data/Locate_Ice_Saves/{img.datetime}/original.tif',originalImage,photometric='rgb')
+        tf.imwrite(f'E:/Data/Locate_Ice_Saves/{img.datetime}/destriped.tif',destripeImage,photometric='rgb')
+        tf.imwrite(f'E:/Data/Locate_Ice_Saves/{img.datetime}/corrected.tif',correctedImage,photometric='rgb')
+        tf.imwrite(f'E:/Data/Locate_Ice_Saves/{img.datetime}/smoothed.tif',smoothSpecImg,photometric='rgb')
+        tf.imwrite(f'E:/Data/Locate_Ice_Saves/{img.datetime}/water_locations.tif',waterLocations,photometric='rgb')
+        print (f'Images Saved at {time.time()-start:.0f} seconds')
+
+        imgtime = time.time()-imgStartTime
+        if imgtime < 1:
+            print(f'Image {img.datetime} completed in {imgtime*10**3:.3f} milliseconds')
+        elif imgtime < 60 and imgtime > 1:
+            print(f'Image {img.datetime} completed in {imgtime:.3f} seconds')
+        else:
+            print(f'Image {img.datetime} completed in {imgtime/60:.0f} minutes and {imgtime%60:.3f} seconds')
+
+        print (f'{img_num} out of {totalImages} images complete ({img_num/totalImages:.0%})')
+        img_num+=1
 
 
     end = time.time()
