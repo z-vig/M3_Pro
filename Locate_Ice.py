@@ -259,9 +259,6 @@ class HDR_Image():
         
         return water_where,self.waterPixels_noise,self.waterPixels,waterDf
 
-    
-
-
 
 if __name__ == "__main__":
     start = time.time()
