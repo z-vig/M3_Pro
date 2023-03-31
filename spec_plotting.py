@@ -9,7 +9,7 @@ import numpy as np
 
 def fancy_spec_plot(fig,ax,x,y,**kwargs):
     defaultKwargs = {'std':np.zeros(len(y)),'ylabel':'Reflectance','xlabel':'Wavelength \u03BCm','title':None,'minorticks':True,'wvl_lim':(1000,2500),
-                     'line_style':'solid','line_color':'red','std_color':'black','label':'plot','alpha':1}
+                     'line_style':'solid','line_color':'red','std_color':'black','label':'plot','alpha':1,'legend':True}
     kwargs = {**defaultKwargs,**kwargs}
     error = "Keyword Error in"
     
@@ -58,8 +58,9 @@ def fancy_spec_plot(fig,ax,x,y,**kwargs):
         ax.set_title(kwargs.get('title'),fontname="Times New Roman",fontsize=14)
     elif kwargs.get('title') == None:
         pass
-
-    ax.legend()
+    
+    if kwargs.get('legend') == True:
+        ax.legend()
     
 
 def plot_numpy_images(*args:np.ndarray,**kwargs:np.ndarray):
