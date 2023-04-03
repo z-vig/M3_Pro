@@ -47,34 +47,27 @@ class Water_Image():
         self.water_spectra_destripe = self.destripeCube[x,y,:]
         return self.water_spectra_destripe
     
-    def calculate_band_depth(self):
+    def calculate_spectral_angle(self):
         minLocate = np.array(([1.242,1.323],[1.503,1.659],[1.945,2.056]))
         shoulderLocate = np.array(([1.13,1.35],[1.42,1.74],[1.82,2.2]))
         
 
         
 #%%
+##Getting Paths
 waterImagePathList = []
 smoothImagePathList = []
 originalImagePathList = []
 destripeImagePathList = []
 for root,dirs,files in os.walk(locateIceSavesPath):
+    fileType_list = []
     for file in files:
-        if root.find('2009')>-1 and file == 'Water_Locations.npy':
-            path = os.path.join(root,file)
-            fileID_slice = slice(*find_multi(path,'\\')[-2:],1) #Getting fileID location in path
-            file_ID = path[fileID_slice][1:] #Removing \ at the beginning
-            waterImagePathList.append(path)
-            #print (f'Image {file_ID}: {os.path.join(root,file)}')
-        elif root.find('2009')>-1 and file == "Smooth_Spectrum_Image.npy":
-            path = os.path.join(root,file)
-            smoothImagePathList.append(path)
-        elif root.find('2009')>-1 and file == "Original_Image.npy":
-            path = os.path.join(root,file)
-            originalImagePathList.append(path)
-        elif root.find('2009')>-1 and file == "Destriped_Image.npy":
-            path = os.path.join(root,file)
-            destripeImagePathList.append(path)
+        if root.find('2009')>-1 and file.find('.npy')>-1:
+            if file not in fileType_list:
+                print (root,file)
+                fileType_list.append(file)
+
+ 
 
 #print (smoothImagePathList)
 
@@ -203,9 +196,9 @@ for i,fileID in zip(range(averageWater.shape[0]),fileIDList):
     fig = plt.figure()
     plt.plot(allowedWavelengths,unfilteredAverageWater[i,:],label='Original Average')
     plt.plot(allowedWavelengths,correctedAverageWater[i,:],label='Corrected Average')
-    plt.plot(x_destripe,f_destripe(x_destripe),label='Unfiltered Average Fit')
+    plt.plot(x_destripe,f_destripe(x_destripe),label='Corrected Average Fit')
     #plt.plot(xtest,f(xtest),label='USGS Water')
-    plt.title(f'non-Normalized for {fileID}')
+    plt.title(f'Non-Normalized for {fileID}')
     plt.legend()
 
 plt.show()
