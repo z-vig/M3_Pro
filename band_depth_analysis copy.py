@@ -17,17 +17,17 @@ class Water_Mosaic():
 
     @property
     def fileIDList(self):
-        self._fileIDList = []
+        _fileIDList = []
         for root,dirs,files in os.walk(self.iceDataPath):
             for file in files:
                 if root.find('2009')>-1 and file.find('npy')>-1:
                     fileID_Index = find_multi(root,'\\')
                     file_ID = root[fileID_Index[-1]+1:]
                     #print (file_ID)
-                    if file_ID not in self._fileIDList:
-                        self._fileIDList.append(file_ID) #Removing \ at the beginning
+                    if file_ID not in _fileIDList:
+                        _fileIDList.append(file_ID) #Removing \ at the beginning
         
-        return self._fileIDList
+        return _fileIDList
     
     @property
     def imagePathDictionary(self):
@@ -43,30 +43,45 @@ class Water_Mosaic():
         return imagePath_dict
     
     @property
-    def waterArrayList(self):
-        return [np.load(i) for i in self.imagePathDictionary.get('Water_Locations')]
+    def waterArrayDict(self) -> dict:
+        waterArrayList = [np.load(i) for i in self.imagePathDictionary.get('Water_Locations')]
+        _waterArrayDict = {}
+        for array,arrayName in zip(waterArrayList,self.fileIDList):
+            _waterArrayDict.update({arrayName:array})
+        
+        return _waterArrayDict
 
-    def get_water_coordinates(self):
-        coordinateList = []
-        for array in self.waterArrayList:
-            coordinateList.append(np.array(np.where(array[:,:,0]==1)))
-        return coordinateList
+    @property
+    def waterCoordinates(self) -> dict:
+        coordinateDict = {}
+        for array,arrayName in zip(self.waterArrayDict.values(),self.fileIDList):
+            coordinateDict.update({arrayName:np.array(np.where(array[:,:,0]==1))})
+        return coordinateDict
     
-    def get_water_spectra(self):
-        x,y = self.waterCoords[0],self.waterCoords[1]
-        self.water_spectra = self.smoothCube[x,y,:]
-        return self.water_spectra
-    
-    def get_water_spectra_original(self):
-        x,y = self.waterCoords[0],self.waterCoords[1]
-        self.water_spectra_original = self.originalCube[x,y,:]
-        return self.water_spectra_original
-    
-    def get_destripe_spectra(self):
-        x,y = self.waterCoords[0],self.waterCoords[1]
-        self.water_spectra_destripe = self.destripeCube[x,y,:]
-        return self.water_spectra_destripe
-    
+    def get_spectra(self,**kwargs):
+        defaultKwargs = {'spectraType':'Original_Image','imageID':['2009-04-17_19-33-20']}
+        kwargs = {**defaultKwargs,**kwargs}
+
+        if kwargs.get('imageID') == 'all':
+            imageID_list = self.fileIDList
+        else:
+            imageID_list = kwargs.get('imageID')
+
+        spectrumImageDict = {}
+        imageNum = 1
+        for imageID in imageID_list:
+            print (f'\rCreating water spectrum image for {imageID}... ({imageNum/len(imageID_list):.0%})',end='\r')
+            xWater,yWater = self.waterCoordinates.get(imageID)[0,:],self.waterCoordinates.get(imageID)[1,:]
+
+            spectraType = kwargs.get('spectraType')
+            spectrumImage_list = imagePathDictionary.get(spectraType) #Gets list of all images with spectrum type "spectraType"
+            spectrumImage = np.load(spectrumImage_list[[index for index,ID in enumerate(imageID_list) if imageID in ID][0]]) #Gets image defined by "imageID"
+            spectrumImageDict.update({imageID:spectrumImage})
+
+            imageNum+=1
+        
+        return spectrumImageDict
+
     def calculate_spectral_angle(self):
         minLocate = np.array(([1.242,1.323],[1.503,1.659],[1.945,2.056]))
         shoulderLocate = np.array(([1.13,1.35],[1.42,1.74],[1.82,2.2]))
@@ -79,23 +94,34 @@ class Water_Mosaic():
 obj = Water_Mosaic(r'E:\Data\Locate_Ice_Saves')
 fileIDList = obj.fileIDList
 imagePathDictionary = obj.imagePathDictionary
-for i in obj.get_water_coordinates():
-    print (type(i),i.shape)
+# for i in obj.get_water_coordinates():
+#     print (type(i),i.shape)
+
+# print (obj.waterArrayDict.keys())
+# for value in obj.waterArrayDict.values():
+#     print (value.shape)
+
+# print (obj.waterCoordinates.keys())
+# for value in obj.waterCoordinates.values():
+#     print (value.shape)
+
+waterSpectra_original_0417 = obj.get_spectra(spectraType='Original_Image',imageID='all')
+print (waterSpectra_original_0417.keys())
+for value in waterSpectra_original_0417.values():
+    print (value.shape)
 
 
-water_coordinates = obj.get_water_coordinates()[0]
 
-testim = obj.waterArrayList[0][:,:,0]
-fig = plt.figure()
-plt.imshow(testim)
+# testim = obj.waterArrayDict.get('2009-04-17_19-33-20')[:,:,0]
+# fig = plt.figure()
+# plt.imshow(testim)
 
-cross_check = np.zeros(testim.shape)
-cross_check[water_coordinates[0,:],water_coordinates[1,:]] = 1
-fig = plt.figure()
-plt.imshow(cross_check)
-plt.show()
-
-print (imagePathDictionary.keys())
+# water_coordinates = obj.waterCoordinates.get('2009-04-17_19-33-20')
+# cross_check = np.zeros(testim.shape)
+# cross_check[water_coordinates[0,:],water_coordinates[1,:]] = 1
+# fig = plt.figure()
+# plt.imshow(cross_check)
+# plt.show()
 
                 
 
