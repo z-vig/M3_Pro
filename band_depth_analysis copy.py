@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import os
 import spec_plotting
+import spectral as sp
 
 #%%
 def find_multi(s, ch):
@@ -76,7 +77,7 @@ class Water_Mosaic():
             spectraType = kwargs.get('spectraType')
             spectrumImage_list = imagePathDictionary.get(spectraType) #Gets list of all images with spectrum type "spectraType"
             spectrumImage = np.load(spectrumImage_list[[index for index,ID in enumerate(imageID_list) if imageID in ID][0]]) #Gets image defined by "imageID"
-            spectrumImageDict.update({imageID:spectrumImage})
+            spectrumImageDict.update({imageID:spectrumImage[xWater,yWater]})
 
             imageNum+=1
         
@@ -87,7 +88,6 @@ class Water_Mosaic():
         shoulderLocate = np.array(([1.13,1.35],[1.42,1.74],[1.82,2.2]))
         
 
-        
 #%%
 ##Getting Paths
 
@@ -105,9 +105,9 @@ imagePathDictionary = obj.imagePathDictionary
 # for value in obj.waterCoordinates.values():
 #     print (value.shape)
 
-waterSpectra_original_0417 = obj.get_spectra(spectraType='Original_Image',imageID='all')
-print (waterSpectra_original_0417.keys())
-for value in waterSpectra_original_0417.values():
+waterSpectra_original = obj.get_spectra(spectraType='Original_Image',imageID='all')
+print (waterSpectra_original.keys())
+for value in waterSpectra_original.values():
     print (value.shape)
 
 
@@ -123,9 +123,35 @@ for value in waterSpectra_original_0417.values():
 # plt.imshow(cross_check)
 # plt.show()
 
-                
-
+#%%
+waterSpectra_smooth = obj.get_spectra(spectraType='Smooth_Spectrum_Image',imageID='all')
+print (waterSpectra_smooth.keys())
+for value in waterSpectra_smooth.values():
+    print (value.shape)
+#%%
+waterSpectra_corrected = obj.get_spectra(spectraType='Correced_Image',imageID='all')
+print (waterSpectra_corrected.keys())
+for value in waterSpectra_corrected.values():
+    print (value.shape)
 
     
 #%%
+hdr = sp.envi.open(r'E:\Data\20230209T095534013597\extracted_files\hdr_files\m3g20090417t193320_v01_rfl\m3g20090417t193320_v01_rfl.hdr')
+wvl = np.array(hdr.bands.centers)
+allowedIndices = np.where((wvl>900)&(wvl<2600))
+allowedWvl = wvl[allowedIndices]
+image = hdr.read_bands(allowedIndices[0])
+print (image.shape)
 
+def plot_spec(coordNum):
+    fig = plt.figure()
+    coordinate = obj.waterCoordinates.get('2009-04-17_19-33-20')[:,coordNum]
+    plt.plot(allowedWvl,waterSpectra_corrected.get('2009-04-17_19-33-20')[coordNum,:])
+    #plt.plot(allowedWvl,image[155,265,:])
+    plt.plot(allowedWvl,waterSpectra_smooth.get('2009-04-17_19-33-20')[coordNum,:])
+    plt.vlines()
+    plt.title(f'({coordinate[0]},{coordinate[1]})')
+
+plot_spec(57)
+plot_spec(0)
+plot_spec(3)
