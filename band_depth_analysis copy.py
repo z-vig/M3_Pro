@@ -149,7 +149,9 @@ def plot_spec(coordNum):
     plt.plot(allowedWvl,waterSpectra_corrected.get('2009-04-17_19-33-20')[coordNum,:])
     #plt.plot(allowedWvl,image[155,265,:])
     plt.plot(allowedWvl,waterSpectra_smooth.get('2009-04-17_19-33-20')[coordNum,:])
-    plt.vlines()
+    ymin = waterSpectra_corrected.get('2009-04-17_19-33-20')[coordNum,:].min()
+    ymax = waterSpectra_corrected.get('2009-04-17_19-33-20')[coordNum,:].max()
+    plt.vlines([1242,1323,1503,1659,1945,2056],ymin,ymax,ls='-.',color='k')
     plt.title(f'({coordinate[0]},{coordinate[1]})')
 
 plot_spec(57)
