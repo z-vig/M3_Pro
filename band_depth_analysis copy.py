@@ -59,6 +59,23 @@ class Water_Mosaic():
             coordinateDict.update({arrayName:np.array(np.where(array[:,:,0]==1))})
         return coordinateDict
     
+    @property
+    def waterBandDict(self) -> pd.DataFrame:
+        _waterBandDict = {}
+        
+        n=0
+        for root,dirs,files in os.walk(r'E:/Data/Locate_Ice_Saves'):
+            if root.find('2009')>-1:
+                fileID = self.fileIDList[n]
+                n+=1
+                for file in files:
+                    if file.find('water_locations.csv')>-1:
+                        waterDf = pd.read_csv(os.path.join(root,file))
+                        _waterBandDict.update({fileID:waterDf})
+            
+        return _waterBandDict
+
+    
     def get_spectra(self,**kwargs):
         defaultKwargs = {'spectraType':'Original_Image','imageID':['2009-04-17_19-33-20']}
         kwargs = {**defaultKwargs,**kwargs}
@@ -82,35 +99,111 @@ class Water_Mosaic():
             imageNum+=1
         
         return spectrumImageDict
+    
+    def get_band_images(self,smoothed_waterSpectra_dict,allowedWvl):
+        shoulderValues = np.array(([1130,1350],[1420,1740],[1820,2200]))
+        shoulderValues_exact = np.zeros((3,2))
+        n=0
+        for Ra,Rc in zip(shoulderValues[:,0],shoulderValues[:,1]):
+            Ra_wvl_list = [abs(Ra-index) for index in allowedWvl]
+            Rc_wvl_list = [abs(Rc-index) for index in allowedWvl]
+            shoulderValues_exact[n,:]=allowedWvl[np.where((Ra_wvl_list==min(Ra_wvl_list))|(Rc_wvl_list==min(Rc_wvl_list)))]
+            n+=1
+
+        self.bandImages_dict = {}
+        for stamp,stampName in zip(smoothed_waterSpectra_dict.values(),smoothed_waterSpectra_dict.keys()):
+            waterDf = obj.waterBandDict.get(stampName)
+            waterDf = waterDf.sort_values(['x','y'])
+            band1,band2,band3 = waterDf.iloc[0,2],waterDf.iloc[0,3],waterDf.iloc[0,4]
+
+            Rc_wvlIndices = np.where((allowedWvl==band1)|(allowedWvl==band2)|(allowedWvl==band3))[0].astype(int)
+            Ra_wvlIndices = np.where((allowedWvl==shoulderValues_exact[0,0])|(allowedWvl==shoulderValues_exact[1,0])|(allowedWvl==shoulderValues_exact[2,0]))[0]
+            Rb_wvlIndices = np.where((allowedWvl==shoulderValues_exact[0,1])|(allowedWvl==shoulderValues_exact[1,1])|(allowedWvl==shoulderValues_exact[2,1]))[0]
+            
+            '''
+            Values of dictionary are a tuple : 
+            (array with columns {Rc1,Rc2,Rc3,Ra1,Ra2,Ra3,Rb1,Rb2,Rb3}, 
+                            array with columns {Rc_wvlIndices,Ra_wvlIndices,Rb_wvlIndices})
+            '''
+
+            #print (stampName)
+            self.bandImages_dict.update({stampName:(stamp[:,np.concatenate([Rc_wvlIndices,Ra_wvlIndices,Rb_wvlIndices])],\
+                                                    np.concatenate([Rc_wvlIndices,Ra_wvlIndices,Rb_wvlIndices]).reshape((3,3)))})
+
+        return self.bandImages_dict       
+    
+    def calculate_band_depth(self,**kwargs):
+        defaultKwargs = {'plot':False}
+        kwargs = {**defaultKwargs,**kwargs}
+
+        #print (shoulderValues_exact[0,0])
+        bandDepthImage_dict = {}
+        for imageTuple,stampName in zip(self.bandImages_dict.values(),self.bandImages_dict.keys()):
+            
+            bandImage,wvlIndices = imageTuple
+
+            Rc_bands,Ra_bands,Rb_bands = [0,1,2],[3,4,5],[6,7,8]
+            Rc_wvlIndices,Ra_wvlIndices,Rb_wvlIndices = wvlIndices[0],wvlIndices[1],wvlIndices[2]
+
+            Rc = bandImage[:,Rc_bands]
+            Ra = bandImage[:,Ra_bands]
+            Rb = bandImage[:,Rb_bands]
+            b = (allowedWvl[Rc_wvlIndices]-allowedWvl[Ra_wvlIndices])/(allowedWvl[Rb_wvlIndices]-allowedWvl[Ra_wvlIndices])
+            a = 1-b
+            print (f'Rc:{Rc.shape},a:{a},b:{b}')
+            Rc_star = a*Ra+b*Rb
+
+            bandDepths = 1-(Rc/Rc_star)
+
+            bandDepthImage_dict.update({stampName:bandDepths})
+        
+            waterDf = obj.waterBandDict.get(stampName)
+            waterDf = waterDf.sort_values(['x','y'])
+            #print (f'a:{a},b:{b}')
+            if kwargs.get('plot')==True:
+                test_spectra = waterSpectra_smooth.get('2009-04-17_19-33-20')[0,:]
+                plt.plot(allowedWvl,waterSpectra_corrected.get('2009-04-17_19-33-20')[0,:])
+                plt.plot(allowedWvl,test_spectra)
+                plt.vlines(waterDf.iloc[0,2:],test_spectra.min(),test_spectra.max(),ls='-.',color='red')
+                plt.vlines([1242,1323,1503,1659,1945,2056],test_spectra.min(),test_spectra.max(),ls='-.',color='k')
+                #plt.xlim(1000,1450)
+                plt.scatter(allowedWvl[self.Rc_wvlIndices],test_spectra[self.Rc_wvlIndices],marker='x',color='k')
+                plt.scatter(allowedWvl[self.Ra_wvlIndices],test_spectra[self.Ra_wvlIndices],marker='x',color='green')
+                plt.scatter(allowedWvl[self.Rb_indices],test_spectra[self.Rb_indices],marker='x',color='purple')
+                plt.scatter(allowedWvl[self.Rc_wvlIndices],Rc_star,marker='x')
+                for i in range(3):
+                    plt.plot([allowedWvl[self.Ra_wvlIndices][i],allowedWvl[self.Rb_indices][i]],[test_spectra[self.Ra_wvlIndices][i],test_spectra[self.Rb_indices][i]])
+
+        return bandDepthImage_dict
 
     def calculate_spectral_angle(self):
         minLocate = np.array(([1.242,1.323],[1.503,1.659],[1.945,2.056]))
         shoulderLocate = np.array(([1.13,1.35],[1.42,1.74],[1.82,2.2]))
         
 
-#%%
 ##Getting Paths
 
 obj = Water_Mosaic(r'E:\Data\Locate_Ice_Saves')
 fileIDList = obj.fileIDList
 imagePathDictionary = obj.imagePathDictionary
-# for i in obj.get_water_coordinates():
-#     print (type(i),i.shape)
 
-# print (obj.waterArrayDict.keys())
-# for value in obj.waterArrayDict.values():
-#     print (value.shape)
+bandImages_dict = obj.get_band_images(waterSpectra_smooth,allowedWvl)
+print (bandImages_dict.keys())
+for i in bandImages_dict.values():
+    print(i[0].shape,i[1].shape)
+    print (i[1][0])
+    break
 
-# print (obj.waterCoordinates.keys())
-# for value in obj.waterCoordinates.values():
-#     print (value.shape)
+bandDepthImage_dict = obj.calculate_band_depth()
+print (bandDepthImage_dict.keys())
+for i in bandDepthImage_dict.values():
+    print (i.shape)
 
+#%%
 waterSpectra_original = obj.get_spectra(spectraType='Original_Image',imageID='all')
 print (waterSpectra_original.keys())
 for value in waterSpectra_original.values():
     print (value.shape)
-
-
 
 # testim = obj.waterArrayDict.get('2009-04-17_19-33-20')[:,:,0]
 # fig = plt.figure()
@@ -157,3 +250,16 @@ def plot_spec(coordNum):
 plot_spec(57)
 plot_spec(0)
 plot_spec(3)
+
+#%%
+for row in range(waterSpectra_smooth.get('2009-04-17_19-33-20').shape[0]):
+    spectrum = waterSpectra_smooth.get('2009-04-17_19-33-20')[row,:]
+
+
+
+#%%
+bandImages_dict = obj.get_band_images(waterSpectra_smooth,allowedWvl)
+print (bandImages_dict.keys())
+#plt.plot(bandImages_dict.get('2009-04-17_19-33-20')[0,:])
+
+#%%

@@ -161,7 +161,7 @@ usgsMin = f(xtest).min()
 usgsMax = f(xtest).max()
 
 for i,fileID in zip(range(averageWater.shape[0]),fileIDList):
-
+    print ('test')
     normalizedDestripe = correctedAverageWater[i,:] - correctedAverageWater[i,:].min()
     normalizedDestripe = normalizedDestripe/normalizedDestripe.max()
     avg_Destripe,std_Destripe,wvl_Destripe = spectrum_averaging.spec_avg(correctedAverageWater[i,:],allowedWavelengths,5)
