@@ -1,4 +1,5 @@
 #%%
+import importlib
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -6,12 +7,18 @@ import os
 import spec_plotting
 import spectral as sp
 import tifffile as tf
+import get_n_extrema
+importlib.reload(get_n_extrema)
+from get_n_extrema import get_nmax
+from get_n_extrema import get_nmin
+import get_USGS_H2OFrost
+importlib.reload(get_USGS_H2OFrost)
+from get_USGS_H2OFrost import get_USGS_H2OFrost
 
 #%%
 def find_multi(s, ch):
     return [i for i, ltr in enumerate(s) if ltr == ch]
 
-locateIceSavesPath = r'E:/Data/Locate_Ice_Saves'
 ## Defining image class
 class Water_Mosaic():
     def __init__(self,iceDataPath) -> None:
@@ -166,7 +173,8 @@ class Water_Mosaic():
             
             Rc_star = a*Ra+b*Rb
 
-            bandDepths = 1-(Rc/Rc_star)
+            #bandDepths = 1-(Rc/Rc_star)
+            bandDepths = Rc_star-Rc
 
             bandDepthImage_dict.update({stampName:bandDepths})
         
@@ -189,16 +197,30 @@ class Water_Mosaic():
 
         return bandDepthImage_dict
 
-    def calculate_spectral_angle(self):
-        minLocate = np.array(([1.242,1.323],[1.503,1.659],[1.945,2.056]))
-        shoulderLocate = np.array(([1.13,1.35],[1.42,1.74],[1.82,2.2]))
-        
+    def calculate_spectral_angle(self,smoothed_waterSpectra_dict,allowedWvl):
+        usgs_spec = get_USGS_H2OFrost()
+        specAngle_dict = {}
+        for stamp,stampName in zip(smoothed_waterSpectra_dict.values(),smoothed_waterSpectra_dict.keys()):
+            specAngle_array = np.zeros(stamp.shape[0])
+            rowNum = 0
+            #print (f'Stamp:{stamp.shape},usgs: {usgs_spec.shape}')
+            for stampRow in stamp:
+                stampNorm,usgsNorm = np.sqrt(np.sum(stampRow**2)),np.sqrt(np.sum(usgs_spec**2))
+                dotProd = np.dot(stampRow,usgs_spec)
+                specAngle = np.arccos(dotProd/(stampNorm*usgsNorm))
+                specAngle_array[rowNum] = specAngle*180/np.pi
+                rowNum += 1
+            specAngle_dict.update({stampName:specAngle_array})
+
+        return specAngle_dict
 
 ##Getting Paths
 
 obj = Water_Mosaic(r'E:\Data\Locate_Ice_Saves')
 fileIDList = obj.fileIDList
 imagePathDictionary = obj.imagePathDictionary
+
+
 
 
 #%%
@@ -254,13 +276,20 @@ plot_spec(0)
 plot_spec(3)
 
 #%%
-for row in range(waterSpectra_smooth.get('2009-04-17_19-33-20').shape[0]):
-    spectrum = waterSpectra_smooth.get('2009-04-17_19-33-20')[row,:]
+def norm_arrayDict(arrDict:dict)->dict:
+    newDict = {}
+    for stamp,stampName in zip(arrDict.values(),arrDict.keys()):
+        normStamp = (stamp-stamp.min(axis=1)[:,np.newaxis])/ \
+            (stamp-stamp.min(axis=1)[:,np.newaxis]).max(axis=1)[:,np.newaxis]
+        newDict.update({stampName:normStamp})
+    return newDict
 
-
+originalDict_norm = norm_arrayDict(waterSpectra_original)
+correctedDict_norm = norm_arrayDict(waterSpectra_corrected)
+smoothDict_norm = norm_arrayDict(waterSpectra_smooth)
 
 #%%
-bandImages_dict = obj.get_band_images(waterSpectra_smooth,allowedWvl)
+bandImages_dict = obj.get_band_images(smoothDict_norm,allowedWvl)
 print (bandImages_dict.keys())
 for i in bandImages_dict.values():
     print(i[0].shape,i[1].shape)
@@ -271,32 +300,104 @@ for i in bandDepthImage_dict.values():
     print (i.shape)
 
 #%%
-bandDepthTestImg = bandDepthImage_dict.get('2009-04-17_19-33-20')
-originalImg = waterSpectra_original.get('2009-04-17_19-33-20')
-correctedImg = waterSpectra_corrected.get('2009-04-17_19-33-20')
-smoothImg = waterSpectra_smooth.get('2009-04-17_19-33-20')
-waterCoords = obj.waterCoordinates.get('2009-04-17_19-33-20')
+def get_bandDepth_image(imageID,displayMax=3,**kwargs):
+    defaultKwargs = {'saveImage':False,'analyzedBand':1.25}
+    kwargs = {**defaultKwargs,**kwargs}
 
-test_img = np.zeros(hdr.read_band(0).shape).astype('float32')
-test_img[waterCoords[0],waterCoords[1]] = bandDepthTestImg[:,0]
+    print (f'Getting Data for {imageID}...')
+    bandDepthTestImg = bandDepthImage_dict.get(imageID)
+    originalImg = waterSpectra_original.get(imageID)
+    correctedImg = waterSpectra_corrected.get(imageID)
+    smoothImg = waterSpectra_smooth.get(imageID)
+    waterCoords = obj.waterCoordinates.get(imageID)
 
-fig,(ax1,ax2,ax3) = plt.subplots(3,1)
-ax1.plot(bandDepthTestImg[:,0])
-ax2.plot(bandDepthTestImg[:,1])
-ax3.plot(bandDepthTestImg[:,2])
+    print (f'Plotting {imageID}...')
+    fig = plt.figure()
+    plt.hist(bandDepthTestImg[:,0],20)
+    plt.title(f'Image <{imageID}> Band Depth Distribution')
+    
+    imageShape = np.load(os.path.join(r'E:/Data/Locate_Ice_Saves/'+imageID+'/Original_Image.npy')).shape
+    BD_img = np.zeros((imageShape[0],imageShape[1],3)).astype('float32')
+    BD_img[waterCoords[0],waterCoords[1]] = bandDepthTestImg
+    if kwargs.get('saveImage') == True:
+        tf.imwrite(f'E:/Data/Figures/BandDepthImage_{imageID}.tif',photometric='rgb')
 
-fig= plt.figure()
+    if kwargs.get('analyzedBand')==1.25:   
+        x,y = get_nmax(BD_img[:,:,0],displayMax)
+        print (f'Max Values are {BD_img[x,y,0]}')
+        max_loc = [(x,y) for x,y in zip(x,y)]
+        print (f'Max Values Located at {max_loc}')
 
-x,y = np.where(test_img==test_img[np.argpartition(test_img,-5)][-5:])
-x,y = x[0],y[0]
-coordNumber = np.where((waterCoords[0,:]==x)&(waterCoords[1,:]==y))[0][0]
-print (f'Max Band Depth Location: {x,y} \n CoordNumber: {coordNumber}')
+    #coordNumber = np.where((waterCoords[0,:]==x)&(waterCoords[1,:]==y))[0][0]
+    coordNumber = [np.where((waterCoords[0,:]==max[0])&(waterCoords[1,:]==max[1]))[0][0] \
+                for max in [(x,y) for x,y in zip(x,y)]]
+    print (f'Max Band Depth Location: {x,y}\nCoordNumber: {coordNumber}')
 
-plt.plot(allowedWvl,originalImg[coordNumber,:],label='Original')
-plt.plot(allowedWvl,correctedImg[coordNumber,:],label='Corrected')
-plt.plot(allowedWvl,smoothImg[coordNumber,:],label='Cubic Spline')
-plt.legend()
-tf.imwrite(f'E:/Data/Figures/test_1.25BandDepth.tif',test_img)
+    fig,axList = plt.subplots(displayMax,1,figsize=(8,displayMax*4.5))
+    n = 1
+    for ax,num,coord in zip(axList,coordNumber,max_loc):
+        #ax.plot(allowedWvl,originalImg[num,:],label='Original')
+        ax.plot(allowedWvl,correctedImg[num,:],label='Corrected')
+        ax.plot(allowedWvl,smoothImg[num,:],label='Cubic Spline')
+        ax.legend()
+        ax.set_title(f'Image <{imageID}>, Point [{coord}] ({n}/{displayMax})')
+        n+=1
 
+    return BD_img
 
+for imageID in obj.fileIDList:
+    BD_img = get_bandDepth_image(imageID,displayMax=10)
+    #tf.imwrite(f'E:/Data/Figures/1.25um_BandDepth_NonRatio.tif',BD_img,photometric='rgb')
+    break
 #%%
+specAngle_dict = obj.calculate_spectral_angle(waterSpectra_smooth,allowedWvl)
+def get_specAngle_image(imageID,displayMin=3,**kwargs):
+    defaultKwargs = {}
+    kwargs = {**defaultKwargs,**kwargs}
+
+    specAngle_water = specAngle_dict.get(imageID)
+    smooth_water = waterSpectra_smooth.get(imageID)
+    corrected_water = waterSpectra_corrected.get(imageID)
+
+    fig,ax = plt.subplots(1,1)
+    ax.hist(specAngle_water,15)
+    ax.set_title(f'{imageID} Spectral Angle Distribution')
+
+    waterCoords = obj.waterCoordinates.get(imageID)
+    print ('Loading image Shape...')
+    imageShape = np.load(os.path.join(r'E:/Data/Locate_Ice_Saves/'+imageID+'/Original_Image.npy')).shape
+    
+    SA_img = np.zeros((imageShape[0],imageShape[1])).astype('float32')
+    SA_img[waterCoords[0],waterCoords[1]] = specAngle_water
+    print ('Getting min...')
+    print (SA_img)
+    x,y = get_nmin(SA_img,displayMin)
+    print ('Min obtained!')
+    max_loc = np.array([(x,y) for x,y in zip(x,y)])
+    #print (np.flip(np.sort(maxArray,axis=0),axis=0))
+    
+    coordNumber = [np.where((waterCoords[0,:]==max[0])&(waterCoords[1,:]==max[1]))[0][0] \
+                   for max in [(x,y) for x,y in zip(x,y)]]
+
+    fig,axList = plt.subplots(displayMin,1,figsize=(8,displayMin*4.5))
+    n = 1
+    for ax,num,coord in zip(axList,coordNumber,max_loc):
+        print (coord)
+        SA_val = SA_img[coord[0],coord[1]]
+        #ax.plot(allowedWvl,originalImg[num,:],label='Original')
+        ax.plot(allowedWvl,corrected_water[num,:],label='Corrected')
+        ax.plot(allowedWvl,smooth_water[num,:],label='Cubic Spline')
+        ax.legend()
+        ax.set_title(f'Image: {imageID[0:10]}, Point: {coord}, SA: {SA_val:.0f} ({n}/{displayMin})')
+        n+=1
+
+    return SA_img
+
+
+for imageID in obj.fileIDList:
+    print (imageID)
+    SA_img = get_specAngle_image(imageID,displayMin=10)
+    tf.imwrite(r'E:/Data/Figures/SpectralAngle_Image.tif',SA_img,photometric='minisblack')
+    break
+    
+
