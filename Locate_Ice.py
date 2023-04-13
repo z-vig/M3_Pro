@@ -1,6 +1,7 @@
 '''
 HDR Image Class and Script for locating Ice Pixels
 '''
+#%%
 import time
 import spectral as sp
 import numpy as np
@@ -14,6 +15,8 @@ import pandas as pd
 import tifffile as tf
 import os
 import M3_UnZip
+from tkinter.filedialog import askdirectory as askdir
+import datetime
 
 def find(s, ch):
     return [i for i, ltr in enumerate(s) if ltr == ch]
@@ -259,9 +262,37 @@ class HDR_Image():
         
         return water_where,self.waterPixels_noise,self.waterPixels,waterDf
 
+#%%
+hdrFileList,hdrFilesPath = M3_UnZip.M3_unzip(select=True)
+totalImages = len(hdrFileList)
+img_num = 1
+print (f'{totalImages} images are about to be processed. Estimated time: {totalImages*15} minutes')
+import shutil
+for file in hdrFileList:
+    imgStartTime = time.time()
+    img = HDR_Image(file)
+    
+    print (f'Image {img.datetime} Loaded:\n\
+    Analyzed Wavelengths: {img.allowedWavelengths}')
+    originalImage = img.original_image()
+    print (f'Image {img.datetime} Saved')
 
+    try:
+        os.mkdir(f'{savefolder}/{img.datetime}')
+    except:
+        pass
+
+    #print (originalImage.astype('float32').shape)
+    
+    #np.save(f'{savefolder}/{img.datetime}/Original_Image.npy',originalImage)
+    tf.imwrite(f'{savefolder}/{img.datetime}/Original_Image.tif',originalImage.astype('float32'),photometric='rgb')
+    shutil.copy(f'{savefolder}/{img.datetime}/Original_Image.tif',f'{savefolder}/originalImages/{img.datetime}_original.tif')
+#%%
 if __name__ == "__main__":
     start = time.time()
+    print ('Begin by selecting a folder to save your data!')
+    savefolder = askdir()
+    print (f'Image Processing started at {datetime.datetime.now()}')
     hdrFileList,hdrFilesPath = M3_UnZip.M3_unzip(select=True)
     totalImages = len(hdrFileList)
     img_num = 1
@@ -279,7 +310,8 @@ if __name__ == "__main__":
         print (f'Image destriped at {time.time()-start:.1f} seconds')
 
         print ('Obtaining image and mosaic statistics...')
-        shadowDict,imageStats,mosaicPixels,mosaicStats = get_pixel_mosaic.create_arrays(r"E:/Data/20230209T095534013597/",r"E:/Data/Locate_Ice_Saves/")
+
+        shadowDict,imageStats,mosaicPixels,mosaicStats = get_pixel_mosaic.create_arrays(r"E:/Data/20230209T095534013597/",savefolder)
         print (f'Image and mosaic statistics obtained at {time.time()-start:.1f} seconds')
 
         print ('Calculating Average Mosaic Reflectance...')
@@ -300,27 +332,32 @@ if __name__ == "__main__":
 
         #plt.show()
 
+        #%%
+        def save_everything_to(folder):
+            print ('Saving Data...')
 
-        print ('Saving Data...')
-        try:
-            os.mkdir(f'E:/Data/Locate_Ice_Saves/{img.datetime}')
-        except:
-            pass
+            try:
+                os.mkdir(f'{folder}/{img.datetime}')
+            except:
+                pass
 
-        waterDf.to_csv(f'E:/Data/Locate_Ice_Saves/{img.datetime}/water_locations.csv')
-        np.save(f'E:/Data/Locate_Ice_Saves/{img.datetime}/Original_Image.npy',originalImage)
-        np.save(f'E:/Data/Locate_Ice_Saves/{img.datetime}/Destriped_Image.npy',destripeImage)
-        np.save(f'E:/Data/Locate_Ice_Saves/{img.datetime}/Correced_Image.npy',correctedImage)
-        np.save(f'E:/Data/Locate_Ice_Saves/{img.datetime}/Smooth_Spectrum_Image.npy',smoothSpecImg)
-        np.save(f'E:/Data/Locate_Ice_Saves/{img.datetime}/Water_Locations.npy',waterLocations)
-        print (f'Data saved at {time.time()-start} seconds')
+            waterDf.to_csv(f'{folder}/{img.datetime}/water_locations.csv')
+            np.save(f'{folder}/{img.datetime}/Original_Image.npy',originalImage)
+            np.save(f'{folder}/{img.datetime}/Destriped_Image.npy',destripeImage)
+            np.save(f'{folder}/{img.datetime}/Correced_Image.npy',correctedImage)
+            np.save(f'{folder}/{img.datetime}/Smooth_Spectrum_Image.npy',smoothSpecImg)
+            np.save(f'{folder}/{img.datetime}/Water_Locations.npy',waterLocations)
+            print (f'Data saved at {time.time()-start} seconds')
 
-        print ('Saving Images...')
-        tf.imwrite(f'E:/Data/Locate_Ice_Saves/{img.datetime}/original.tif',originalImage,photometric='rgb')
-        tf.imwrite(f'E:/Data/Locate_Ice_Saves/{img.datetime}/destriped.tif',destripeImage,photometric='rgb')
-        tf.imwrite(f'E:/Data/Locate_Ice_Saves/{img.datetime}/corrected.tif',correctedImage,photometric='rgb')
-        tf.imwrite(f'E:/Data/Locate_Ice_Saves/{img.datetime}/smoothed.tif',smoothSpecImg,photometric='rgb')
-        tf.imwrite(f'E:/Data/Locate_Ice_Saves/{img.datetime}/water_locations.tif',waterLocations,photometric='rgb')
+            print ('Saving Images...')
+            tf.imwrite(f'{folder}/{img.datetime}/original.tif',originalImage,photometric='rgb')
+            tf.imwrite(f'{folder}/{img.datetime}/destriped.tif',destripeImage,photometric='rgb')
+            tf.imwrite(f'{folder}/{img.datetime}/corrected.tif',correctedImage,photometric='rgb')
+            tf.imwrite(f'{folder}/{img.datetime}/smoothed.tif',smoothSpecImg,photometric='rgb')
+            tf.imwrite(f'{folder}/{img.datetime}/water_locations.tif',waterLocations,photometric='rgb')
+        
+        #save_everything_to(savefolder)
+        #%%
         print (f'Images Saved at {time.time()-start:.0f} seconds')
 
         imgtime = time.time()-imgStartTime
@@ -337,6 +374,7 @@ if __name__ == "__main__":
 
     end = time.time()
     runtime = end-start
+    print (f'Image Processing finished at {datetime.datetime.now()}')
     if runtime < 1:
         print(f'Program Executed in {runtime*10**3:.3f} milliseconds')
     elif runtime < 60 and runtime > 1:

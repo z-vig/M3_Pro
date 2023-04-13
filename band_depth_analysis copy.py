@@ -1,5 +1,6 @@
 #%%
 import importlib
+import copy
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -347,37 +348,39 @@ def get_bandDepth_image(imageID,displayMax=3,**kwargs):
 
 for imageID in obj.fileIDList:
     BD_img = get_bandDepth_image(imageID,displayMax=10)
-    #tf.imwrite(f'E:/Data/Figures/1.25um_BandDepth_NonRatio.tif',BD_img,photometric='rgb')
-    break
+    tf.imwrite(f'D:/Lunar_Ice_Files/Image Products/Band Depth Images/Band_Depth_{imageID}.tif',BD_img,photometric='rgb')
 #%%
 specAngle_dict = obj.calculate_spectral_angle(waterSpectra_smooth,allowedWvl)
 def get_specAngle_image(imageID,displayMin=3,**kwargs):
-    defaultKwargs = {}
+    defaultKwargs = {'mutePlotting':False}
     kwargs = {**defaultKwargs,**kwargs}
 
     specAngle_water = specAngle_dict.get(imageID)
     smooth_water = waterSpectra_smooth.get(imageID)
     corrected_water = waterSpectra_corrected.get(imageID)
 
-    fig,ax = plt.subplots(1,1)
-    ax.hist(specAngle_water,15)
-    ax.set_title(f'{imageID} Spectral Angle Distribution')
-
     waterCoords = obj.waterCoordinates.get(imageID)
-    print ('Loading image Shape...')
+    #print ('Loading image Shape...')
     imageShape = np.load(os.path.join(r'E:/Data/Locate_Ice_Saves/'+imageID+'/Original_Image.npy')).shape
     
     SA_img = np.zeros((imageShape[0],imageShape[1])).astype('float32')
     SA_img[waterCoords[0],waterCoords[1]] = specAngle_water
-    print ('Getting min...')
-    print (SA_img)
+    #print ('Getting min...')
+    #print (SA_img)
     x,y = get_nmin(SA_img,displayMin)
-    print ('Min obtained!')
+    #print ('Min obtained!')
     max_loc = np.array([(x,y) for x,y in zip(x,y)])
     #print (np.flip(np.sort(maxArray,axis=0),axis=0))
     
     coordNumber = [np.where((waterCoords[0,:]==max[0])&(waterCoords[1,:]==max[1]))[0][0] \
                    for max in [(x,y) for x,y in zip(x,y)]]
+    
+    if kwargs.get('mutePlotting') == True:
+        return SA_img
+
+    fig,ax = plt.subplots(1,1)
+    ax.hist(specAngle_water,15)
+    ax.set_title(f'{imageID} Spectral Angle Distribution')
 
     fig,axList = plt.subplots(displayMin,1,figsize=(8,displayMin*4.5))
     n = 1
@@ -388,16 +391,17 @@ def get_specAngle_image(imageID,displayMin=3,**kwargs):
         ax.plot(allowedWvl,corrected_water[num,:],label='Corrected')
         ax.plot(allowedWvl,smooth_water[num,:],label='Cubic Spline')
         ax.legend()
-        ax.set_title(f'Image: {imageID[0:10]}, Point: {coord}, SA: {SA_val:.0f} ({n}/{displayMin})')
+        ax.set_title(f'Image: {imageID[0:10]}, Point: {coord}, SA: {SA_val:.2f}\u00B0 ({n}/{displayMin})')
         n+=1
 
     return SA_img
 
-
+#%%
 for imageID in obj.fileIDList:
-    print (imageID)
-    SA_img = get_specAngle_image(imageID,displayMin=10)
-    tf.imwrite(r'E:/Data/Figures/SpectralAngle_Image.tif',SA_img,photometric='minisblack')
-    break
-    
-
+    SA_img = get_specAngle_image(imageID,displayMin=10,mutePlotting=True)
+    print (SA_img.shape)
+    print (f'{imageID} Saved!')
+    SA_img_Cut = copy.copy(SA_img)
+    SA_img_Cut[np.where(SA_img_Cut>30)] = -9999
+    SA_img_Cut[np.where(SA_img_Cut==0)] = -9999
+    tf.imwrite(f'D:/Lunar_Ice_Files/Image Products/SpecAngle_Cut/SpecAngleCut_{imageID}.tif',SA_img_Cut,photometric='minisblack')
