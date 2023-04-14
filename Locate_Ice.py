@@ -9,7 +9,7 @@ import spec_plotting
 import matplotlib.pyplot as plt
 import DestripeImage
 from copy import copy
-import get_pixel_mosaic
+from get_pixel_mosaic import create_arrays
 import cubic_spline_image as csi
 import pandas as pd
 import tifffile as tf
@@ -261,32 +261,15 @@ class HDR_Image():
                                                     'Possible H\u2082O\nPixels','Possible H\u2082O\nPixels'])
         
         return water_where,self.waterPixels_noise,self.waterPixels,waterDf
-
 #%%
-hdrFileList,hdrFilesPath = M3_UnZip.M3_unzip(select=True)
-totalImages = len(hdrFileList)
-img_num = 1
-print (f'{totalImages} images are about to be processed. Estimated time: {totalImages*15} minutes')
-import shutil
-for file in hdrFileList:
-    imgStartTime = time.time()
-    img = HDR_Image(file)
-    
-    print (f'Image {img.datetime} Loaded:\n\
-    Analyzed Wavelengths: {img.allowedWavelengths}')
-    originalImage = img.original_image()
-    print (f'Image {img.datetime} Saved')
+#hdrFileList,hdrFilesPath = M3_UnZip.M3_unzip(select=True)
+with open("E:/Data/Locate_Ice_Saves/Product_IDs.txt",'w') as writeFile:
+    for file in hdrFileList:
+        img = HDR_Image(file)
+        string = 'M3G'+img.datetime.replace('-','').replace('_','T')+'*'
+        writeFile.write(string+'\n')
+writeFile.close()
 
-    try:
-        os.mkdir(f'{savefolder}/{img.datetime}')
-    except:
-        pass
-
-    #print (originalImage.astype('float32').shape)
-    
-    #np.save(f'{savefolder}/{img.datetime}/Original_Image.npy',originalImage)
-    tf.imwrite(f'{savefolder}/{img.datetime}/Original_Image.tif',originalImage.astype('float32'),photometric='rgb')
-    shutil.copy(f'{savefolder}/{img.datetime}/Original_Image.tif',f'{savefolder}/originalImages/{img.datetime}_original.tif')
 #%%
 if __name__ == "__main__":
     start = time.time()
@@ -311,7 +294,7 @@ if __name__ == "__main__":
 
         print ('Obtaining image and mosaic statistics...')
 
-        shadowDict,imageStats,mosaicPixels,mosaicStats = get_pixel_mosaic.create_arrays(r"E:/Data/20230209T095534013597/",savefolder)
+        shadowDict,imageStats,mosaicPixels,mosaicStats = create_arrays(r"E:/Data/20230209T095534013597/",savefolder)
         print (f'Image and mosaic statistics obtained at {time.time()-start:.1f} seconds')
 
         print ('Calculating Average Mosaic Reflectance...')
