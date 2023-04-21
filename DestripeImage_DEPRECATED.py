@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Script for Destriping M3 images using Fourier Filtering
+Script for Destriping M3 images using convolution
 """
 
 import numpy as np
@@ -16,11 +16,8 @@ import spectral as sp
 import tifffile as tf
 from spec_plotting import plot_numpy_images
 from copy import copy
-from scipy.fft import fft2,fftshift,ifft2
-import tifffile as tf
-from matplotlib import colormaps
 
-def convolution(image,box_size,**kwargs):
+def destripe(image,box_size,**kwargs):
     defaultKwargs = {"plotImg":False}
     kwargs = {**defaultKwargs,**kwargs}
 
@@ -48,25 +45,14 @@ def convolution(image,box_size,**kwargs):
         n+=1
     
     print ('\n')
+    
+    # sharp = np.array(([0,-1,0],[-1,10,-1],[0,-1,0]))
+    # destripedImage_sharp = signal.convolve2d(destripedImage[:,:,0],sharp)
+
     return destripedImage
 
-def fourier_filter(image):
-    fourier_filter_image = np.zeros(image.shape)
-    for band in range(image.shape[2]):
-        phaseSpace_image = fftshift(fft2(image[:,:,band],norm='backward'))
-
-        yLength = phaseSpace_image.shape[0]
-        yMid = int(round(yLength)/2)
-
-        masked_phaseSpace = copy(phaseSpace_image)
-        masked_phaseSpace[yMid-1:yMid+1,:] = 1
-
-        fourier_filter_image[:,:,band] = abs(ifft2(masked_phaseSpace))
-
-    return fourier_filter_image
-
 if __name__ == "__main__":
-    hdr = sp.envi.open(r'D:/Data/L2_Data/extracted_files/hdr_files/m3g20090417t193320_v01_rfl/m3g20090417t193320_v01_rfl.hdr')
+    hdr = sp.envi.open(r'D:\Data/20230209T095534013597/extracted_files/hdr_files/m3g20090417t193320_v01_rfl/m3g20090417t193320_v01_rfl.hdr')
     bandCenters = hdr.bands.centers
     bandCenters = np.array(bandCenters)
 
@@ -76,16 +62,10 @@ if __name__ == "__main__":
     image = hdr.read_bands(allowedIndices)
 
     # im1,im2,im3,im4 = destripe(image,3),destripe(image,5),destripe(image,7),destripe(image,10)
-    img_destriped = fourier_filter(image)
+    img = destripe(image,7,plotImg=True)
 
-    fig,(ax1,ax2) = plt.subplots(1,2)
-    ax1.imshow(image[:,:,0]),ax1.set_title('Original')
-    ax2.imshow(img_destriped[:,:,0]),ax2.set_title('Destriped')
+    plot_numpy_images(img[:,:,10],titles=['7'],figtitle='Destriping Images')
     plt.show()
-
-    tf.imwrite('D:/Data/Fourier_Filtering_Images/test1_og.tif',image[:,:,0].astype('float32'))
-    tf.imwrite('D:/Data/Fourier_Filtering_Images/test1_filt.tif',img_destriped[:,:,0].astype('float32'))
-
 
 
 
