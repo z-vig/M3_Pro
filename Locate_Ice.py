@@ -149,7 +149,6 @@ class HDR_Image():
         self.waterCoords_map = self.coordinateGrid[waterCoords_numpy[0],waterCoords_numpy[1],:]
         waterDf = pd.DataFrame(self.waterCoords_map)
         waterDf.columns = ['Latitude','Longitude','Elevation']
-        print (type(waterDf),'HELLO')
         print(f'>>>Ice located in {time.time()-startTime:.1f} seconds')
         
         return self.waterLocations,self.waterCoords_map,waterDf
