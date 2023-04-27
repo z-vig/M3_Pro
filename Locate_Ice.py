@@ -71,6 +71,13 @@ class HDR_Image():
         coordArray[:,:,1] = self.loc_data.read_band(0)
         coordArray[:,:,2] = self.loc_data.read_band(2)
         return coordArray
+
+    @property
+    def solarIncidenceImage(self)->np.ndarray:
+        solar_incidence_index = self.obsBandNames.index('Facet Cos(i) (unitless)')
+        solar_incidence_image = 180*np.arccos(self.obs_data.read_band(solar_incidence_index))/np.pi
+        return solar_incidence_image
+
     
     def get_illuminated_coords(self)->tuple:
         solar_incidence_index = self.obsBandNames.index('Facet Cos(i) (unitless)')
@@ -84,24 +91,91 @@ class HDR_Image():
         print (f'Destriping complete in {time.time()-startTime:.1f} seconds')
         return self.filteredImage
     
-    def shadow_correction(self):
-        self.correctedImage = copy(self.filteredImage)
+    def shadow_correction(self,saveFolder,**kwargs)->np.ndarray:
+        defaultKwargs = {'inputImage':self.filteredImage}
+        kwargs = {**defaultKwargs,**kwargs}
 
+        startTime = time.time()
+        self.correctedImage = copy(kwargs.get('inputImage'))
+        try:
+            illuminated_stats = np.load(f'{saveFolder}/mosaicStatistics/illuminatedMosaicStats.npy')
+        except:
+            raise FileNotFoundError('Run the mosaic data inquiry script first!')
+        
+        R_bi = illuminated_stats[:,0]
+        self.correctedImage = self.correctedImage/R_bi
+        print (f'>>>Shadow correction complete in {time.time()-startTime:.1f} seconds')
+        return self.correctedImage
+    
+    def spectrum_smoothing(self,**kwargs)->tuple[np.ndarray,np.ndarray]:
+        defaultKwargs = {'inputImage':self.correctedImage}
+        kwargs = {**defaultKwargs,**kwargs}
 
+        startTime = time.time()
+        self.avgWvl,self.avgSpectrumImage,self.smoothSpectrumImage = \
+            csi.splineFit(kwargs.get('inputImage'),5,self.analyzedWavelengths)
+        print (f'>>>Spectrum Smoothing complete in {time.time()-startTime:.1f} seconds')
+        return self.avgSpectrumImage,self.smoothSpectrumImage
+        
+    def locate_ice(self,**kwargs)->tuple[np.ndarray,np.ndarray,pd.DataFrame]:
+        defaultKwargs = {'inputImage':self.smoothSpectrumImage}
+        kwargs = {**defaultKwargs,**kwargs}
 
+        startTime = time.time()
+        band1_indices = np.where((self.analyzedWavelengths>1242)&(self.analyzedWavelengths<1323))[0]
+        band2_indices = np.where((self.analyzedWavelengths>1503)&(self.analyzedWavelengths<1659))[0]
+        band3_indices = np.where((self.analyzedWavelengths>1945)&(self.analyzedWavelengths<2056))[0]
 
-#For testing:        
+        diff_array = np.zeros(kwargs.get('inputImage').shape)
+        for band in range(kwargs.get('inputImage').shape[2]-1): #The last band will be all zeros
+            diff_array[:,:,band] = kwargs.get('inputImage')[:,:,band]>kwargs.get('inputImage')[:,:,band+1]
 
+        allBand_indices = np.concatenate((band1_indices,band2_indices,band3_indices))
+
+        def get_bandArray(band_indices:np.ndarray,bandName:str)->np.ndarray:
+            band_arr = np.zeros((kwargs.get('inputImage').shape[0:2]))
+            for i in range(band_indices.min()-1,band_indices.max()):
+                band_arr[np.where((diff_array[:,:,i]!=diff_array[:,:,i+1])&(diff_array[:,:,i]==True))] = 1
+            return band_arr
+
+        band1_Array = get_bandArray(band1_indices,'Band 1')
+        band2_Array = get_bandArray(band2_indices,'Band 2')
+        band3_Array = get_bandArray(band3_indices,'Band 3')
+
+        self.waterLocations = np.zeros(band1_Array.shape)
+        waterCoords_numpy = np.where((band1_Array==1)&(band2_Array==1)&(band3_Array==1)&(np.average(kwargs.get('inputImage'),axis=2)>0.05))
+        self.waterLocations[waterCoords_numpy] = 1
+
+        self.waterCoords_map = self.coordinateGrid[waterCoords_numpy[0],waterCoords_numpy[1],:]
+        waterDf = pd.DataFrame(self.waterCoords_map)
+        waterDf.columns = ['Latitude','Longitude','Elevation']
+        print (type(waterDf),'HELLO')
+        print(f'>>>Ice located in {time.time()-startTime:.1f} seconds')
+        
+        return self.waterLocations,self.waterCoords_map,waterDf
+
+#For testing:    
+
+# #%%
+# L2_fileList,L2_filePath = M3_UnZip.M3_unzip(select=True)
+# L1_fileList,L1_filePath = M3_UnZip.M3_unzip(select=True)
+# saveFolder = askdir()
+# rfl_fileList = [i for i in L2_fileList if i.find('rfl')>-1]
+# loc_fileList = [i for i in L1_fileList if i.find('loc')>-1]
+# obs_fileList = [i for i in L1_fileList if i.find('obs')>-1]
+# #%%
+# for rflPath,locPath,obsPath in zip(rfl_fileList,loc_fileList,obs_fileList):
+#     M3stamp = HDR_Image(rflPath,locPath,obsPath)
+#     print (f'{M3stamp.datetime} Started')
+#     M3stamp.destripe_image()
+#     M3stamp.shadow_correction(saveFolder)
+#     M3stamp.spectrum_smoothing()
+#     waterImage,waterCoords,waterDf = M3stamp.locate_ice()
+#     tf.imwrite(f'D:/Data/Ice_Pipeline_Out_4-26-23/water_convolutionFilter.tif',waterImage.astype('float32'))
+#     break
 #%%
-L2_fileList,L2_filePath = M3_UnZip.M3_unzip(select=True)
-L1_fileList,L1_filePath = M3_UnZip.M3_unzip(select=True)
-rfl_fileList = [i for i in L2_fileList if i.find('rfl')>-1]
-loc_fileList = [i for i in L1_fileList if i.find('loc')>-1]
-obs_fileList = [i for i in L1_fileList if i.find('obs')>-1]
-#%%
-for rflPath,locPath,obsPath in zip(rfl_fileList,loc_fileList,obs_fileList):
-    M3stamp = HDR_Image(rflPath,locPath,obsPath)
-    xLight,yLight = M3stamp.get_illuminated_coords()
+
+
 
 #%%
 if __name__ == "__main__":
@@ -143,7 +217,14 @@ if __name__ == "__main__":
         print ('Destriping reflectance image...')
         filteredImage = M3stamp.destripe_image()
 
-        print ()
+        print ('Making Li et al., 2018 Shadow Correction...')
+        correctedImage = M3stamp.shadow_correction(saveFolder,inputImage=M3stamp.unprocessedImage)
+
+        print ('Smoothing spectra...')
+        avgSpecImg,smoothSpecImg = M3stamp.spectrum_smoothing()
+
+        print ('Locating water-like spectra..')
+        waterImage,waterPixels,waterDf = M3stamp.locate_ice()
 
         def save_everything_to(folder):
             saveStartTime = time.time()
@@ -152,20 +233,52 @@ if __name__ == "__main__":
             except:
                 pass
 
+            try:
+                os.mkdir(f'{folder}/aux_data')
+            except:
+                pass
+
+            try:
+                os.mkdir(f'{folder}/aux_data/{M3stamp.datetime}')
+            except:
+                pass
+
             print ('Saving Data...')
             np.save(f'{folder}/{M3stamp.datetime}/original_{M3stamp.datetime}.npy',originalImage)
+            np.save(f'{folder}/{M3stamp.datetime}/filter_{M3stamp.datetime}.npy',filteredImage)
+            np.save(f'{folder}/{M3stamp.datetime}/corrected_{M3stamp.datetime}.npy',correctedImage)
+            np.save(f'{folder}/{M3stamp.datetime}/smoothSpec_{M3stamp.datetime}.npy',smoothSpecImg)
+            np.save(f'{folder}/{M3stamp.datetime}/waterImage_{M3stamp.datetime}.npy',waterImage)
 
             print ('Saving Images...')
             tf.imwrite(f'{folder}/{M3stamp.datetime}/original_{M3stamp.datetime}.tif',originalImage.astype('float32'),photometric='rgb')
             tf.imwrite(f'{folder}/{M3stamp.datetime}/original_{M3stamp.datetime}_readable.tif',originalImage[:,:,0].astype('float32'))
+            tf.imwrite(f'{folder}/{M3stamp.datetime}/filter_{M3stamp.datetime}.tif',filteredImage.astype('float32'),photometric='rgb')
+            tf.imwrite(f'{folder}/{M3stamp.datetime}/corrected_{M3stamp.datetime}.tif',correctedImage.astype('float32'),photometric='rgb')
+            tf.imwrite(f'{folder}/{M3stamp.datetime}/smoothSpec_{M3stamp.datetime}.tif',smoothSpecImg.astype('float32'),photometric='rgb')
+            tf.imwrite(f'{folder}/{M3stamp.datetime}/waterImage_{M3stamp.datetime}.tif',waterImage.astype('float32'))
+
+            print ('Saving Auxilliary Data...')
+            waterDf.to_csv(f'{folder}/aux_data/{M3stamp.datetime}/water_locations.csv')
+            np.save(f'{folder}/aux_data/{M3stamp.datetime}/avgSpec.npy',avgSpecImg)
+            tf.imwrite(f'{folder}/aux_data/{M3stamp.datetime}/correctedImg.tif',correctedImage.astype('float32'),photometric='rgb')
+            tf.imwrite(f'{folder}/aux_data/{M3stamp.datetime}/smoothSpecImg.tif',smoothSpecImg.astype('float32'),photometric='rgb')
+            tf.imwrite(f'{folder}/solarIncidenceImages/incidence_{M3stamp.datetime}',M3stamp.solarIncidenceImage.astype('float32'))
+            coordDf = pd.DataFrame({'Latitude':M3stamp.coordinateGrid[:,:,0].flatten(),'Longitude':M3stamp.coordinateGrid[:,:,1].flatten(),'Elevation':M3stamp.coordinateGrid[:,:,2].flatten()})
+            coordDf.to_csv(f'{folder}/locationInfo/coordGrid_{M3stamp.datetime}')
+
 
             print ('Making copies...')
             shutil.copy(f'{folder}/{M3stamp.datetime}/original_{M3stamp.datetime}.tif',\
                         f'{folder}/originalImages/original_{M3stamp.datetime}.tif')
+            shutil.copy(f'{folder}/{M3stamp.datetime}/filter_{M3stamp.datetime}.tif',\
+                        f'{folder}/destripedImages/filter_{M3stamp.datetime}.tif')
+            shutil.copy(f'{folder}/aux_data/{M3stamp.datetime}/water_locations.csv',\
+                        f'{folder}/water_locations/iceCoords_{M3stamp.datetime}.csv')
             
             print (f'Save complete in {time.time()-saveStartTime:.2f} seconds')
         save_everything_to(saveFolder)
-        print (f'Stamp {stamp_progress} of {totalStampsLoaded} complete ({stamp_progress/totalStampsLoaded:.0%})\n\n')
+        print (f'Stamp ID: {M3stamp.datetime} ({stamp_progress} of {totalStampsLoaded}) complete ({stamp_progress/totalStampsLoaded:.0%})\n\n')
         stamp_progress+=1
 
     end = time.time()
@@ -177,4 +290,3 @@ if __name__ == "__main__":
         print(f'Program Executed in {runtime:.3f} seconds')
     else:
         print(f'Program Executed in {runtime/60:.0f} minutes and {runtime%60:.3f} seconds')
-        

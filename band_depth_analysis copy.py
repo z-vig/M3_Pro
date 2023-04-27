@@ -135,11 +135,11 @@ class Water_Mosaic():
             Ra_wvlIndices = np.tile(Ra_wvlIndices,(Rc_wvlIndices.shape[0],1))
             Rb_wvlIndices = np.tile(Rb_wvlIndices,(Rc_wvlIndices.shape[0],1))
 
-            '''
-            Values of dictionary are a tuple : 
-            (array with columns {Rc1,Rc2,Rc3,Ra1,Ra2,Ra3,Rb1,Rb2,Rb3}, 
-                            array with columns {[Rc_wvlIndices],[Ra_wvlIndices],[Rb_wvlIndices]})
-            '''
+            ###
+            # Values of dictionary are a tuple : 
+            # (array with columns {Rc1,Rc2,Rc3,Ra1,Ra2,Ra3,Rb1,Rb2,Rb3}, 
+            #                 array with columns {[Rc_wvlIndices],[Ra_wvlIndices],[Rb_wvlIndices]})
+            ###
 
             rValueArray = np.zeros((Rc_wvlIndices.shape[0],9))
             rIndexArray = np.concatenate([Rc_wvlIndices,Ra_wvlIndices,Rb_wvlIndices],axis=1)
@@ -216,8 +216,7 @@ class Water_Mosaic():
         return specAngle_dict
 
 ##Getting Paths
-
-obj = Water_Mosaic(r'E:\Data\Locate_Ice_Saves')
+obj = Water_Mosaic(r'D:/Data/Ice_Pipeline_Out_4-21-23')
 fileIDList = obj.fileIDList
 imagePathDictionary = obj.imagePathDictionary
 

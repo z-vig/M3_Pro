@@ -16,11 +16,11 @@ import copy
 
 def mosaic_data_inquiry():
     print ('Select L2 folder')
-    L2_fileList,L2_filePath = M3_UnZip.M3_unzip(select=True)
+    L2_fileList,L2_filePath = M3_UnZip.M3_unzip(select=False,folder="D:/Data/L2_Data")
     print ('Select L1 folder')
-    L1_fileList,L1_filePath = M3_UnZip.M3_unzip(select=True)
+    L1_fileList,L1_filePath = M3_UnZip.M3_unzip(select=False,folder='D:/Data/L1_Data')
     print ('Select output/save folder')
-    saveFolder = askdir()
+    saveFolder = 'D:/Data/Ice_Pipeline_Out_4-21-23'
 
     try:
         os.mkdir(f'{saveFolder}/mosaicStatistics')
@@ -46,13 +46,12 @@ def mosaic_data_inquiry():
     progress = 1
     for rflPath,locPath,obsPath in zip(rfl_fileList,loc_fileList,obs_fileList):
         M3stamp = Locate_Ice.HDR_Image(rflPath,locPath,obsPath)
-
         image = M3stamp.unprocessedImage
+
         xLight,yLight = M3stamp.get_illuminated_coords()
         shape = image.shape
         pixels = image.reshape(shape[0]*shape[1],shape[2])
         illuminatedPixels = image[xLight,yLight]
-
 
         imageAvg = np.average(pixels,axis=0)
         imageMedian = np.median(pixels,axis=0)
