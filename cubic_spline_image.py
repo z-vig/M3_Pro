@@ -14,7 +14,6 @@ import math
 import time
 
 def splineFit(inputImage:np.ndarray,avg_num:int,wvl:np.ndarray):
-    print (f'>>>Smoothing image of size: {inputImage.shape}')
     averageBands = np.zeros((*inputImage.shape[:2],0))
     averageWvl = []
     for band_num in range(inputImage.shape[2]):

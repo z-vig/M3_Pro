@@ -216,13 +216,9 @@ class Water_Mosaic():
         return specAngle_dict
 
 ##Getting Paths
-obj = Water_Mosaic(r'D:/Data/Ice_Pipeline_Out_4-21-23')
+obj = Water_Mosaic(r'E:/Data/Locate_Ice_Saves')
 fileIDList = obj.fileIDList
 imagePathDictionary = obj.imagePathDictionary
-
-
-
-
 #%%
 waterSpectra_original = obj.get_spectra(spectraType='Original_Image',imageID='all')
 print (waterSpectra_original.keys())
@@ -404,3 +400,31 @@ for imageID in obj.fileIDList:
     SA_img_Cut[np.where(SA_img_Cut>30)] = -9999
     SA_img_Cut[np.where(SA_img_Cut==0)] = -9999
     tf.imwrite(f'D:/Lunar_Ice_Files/Image Products/SpecAngle_Cut/SpecAngleCut_{imageID}.tif',SA_img_Cut,photometric='minisblack')
+
+#%%
+walk = os.walk('D:/Data/L1_Data/extracted_files/hdr_files')
+file_array = np.zeros((0,2))
+for root,firs,files in walk:
+    if root.find('loc')>-1:
+        file_array = np.concatenate((file_array,np.array([[files[0],root]])))
+loc_list = [sp.envi.open(f'{root}/{file}') for file,root in zip(file_array[:,0],file_array[:,1])]
+
+watArr_list = []
+for loc_img,imageID in zip(loc_list,obj.fileIDList):
+    loc_img = loc_img.read_bands(range(0,3))
+    SA_img = get_specAngle_image(imageID,displayMin=10,mutePlotting=True)
+    print (f'{imageID} Saved!')
+    SA_img_Cut = copy.copy(SA_img)
+    SA_img_Cut[np.where(SA_img_Cut>30)] = -9999
+    SA_img_Cut[np.where(SA_img_Cut==0)] = -9999
+    SA_img_Cut = np.expand_dims(SA_img_Cut,2)
+    print(SA_img_Cut.shape)
+    print(loc_img.shape)
+    SA_img_Cut_coords = np.concatenate((SA_img_Cut,loc_img),axis=2)
+    print (SA_img_Cut_coords.shape)
+
+    waterCoords = SA_img_Cut_coords[np.where(SA_img_Cut>0)[0],np.where(SA_img_Cut>0)[1],1:]
+    watArr_list.append(waterCoords)
+    df = pd.DataFrame(waterCoords)
+    df.columns = ['Latitude','Longitude','Elevation']
+    df.to_csv(f'D:/Data/Ice_Pipeline_Out_4-13-23/water_locations/{imageID}_SA.csv')
