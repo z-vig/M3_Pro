@@ -18,6 +18,7 @@ import M3_UnZip
 from tkinter.filedialog import askdirectory as askdir
 import datetime
 import shutil
+from get_USGS_H2OFrost import get_USGS_H2OFrost
 
 def find(s, ch):
     return [i for i, ltr in enumerate(s) if ltr == ch]
@@ -143,15 +144,38 @@ class HDR_Image():
         band3_Array = get_bandArray(band3_indices,'Band 3')
 
         self.waterLocations = np.zeros(band1_Array.shape)
-        waterCoords_numpy = np.where((band1_Array==1)&(band2_Array==1)&(band3_Array==1)&(np.average(kwargs.get('inputImage'),axis=2)>0.05))
-        self.waterLocations[waterCoords_numpy] = 1
+        self.waterCoords_numpy = np.where((band1_Array==1)&(band2_Array==1)&(band3_Array==1)&(np.average(kwargs.get('inputImage'),axis=2)>0.05))
+        self.waterLocations[self.waterCoords_numpy] = 1
 
-        self.waterCoords_map = self.coordinateGrid[waterCoords_numpy[0],waterCoords_numpy[1],:]
+        self.waterCoords_map = self.coordinateGrid[self.waterCoords_numpy[0],self.waterCoords_numpy[1],:]
         waterDf = pd.DataFrame(self.waterCoords_map)
         waterDf.columns = ['Latitude','Longitude','Elevation']
         print(f'>>>Ice located in {time.time()-startTime:.1f} seconds')
         
         return self.waterLocations,self.waterCoords_map,waterDf
+
+    def spectral_angle_mapping(self,threshold:float,**kwargs)->tuple[np.ndarray,np.ndarray]:
+        defaultKwargs = {'inputImage':self.smoothSpectrumImage}
+        kwargs = {**defaultKwargs,**kwargs}
+
+        total_pixels = self.unprocessedImage.shape[0]*self.unprocessedImage.shape[1]
+
+        wvl,USGS_Frost = get_USGS_H2OFrost()
+        USGS_Frost = np.expand_dims(USGS_Frost,1)
+        USGS_Frost_Array = np.repeat(USGS_Frost,total_pixels,1).T
+        USGS_Frost_Array = USGS_Frost_Array.reshape((self.unprocessedImage.shape[0],self.unprocessedImage.shape[1],59))
+
+        M,I = kwargs.get('inputImage'),USGS_Frost_Array
+
+        SAM = 180*np.arccos(np.einsum('ijk,ijk->ij',M,I)/(np.linalg.norm(M,axis=2)*np.linalg.norm(I,axis=2)))/np.pi
+        no_water_indices = np.where(self.waterLocations==0)
+        high_spec_angle_indices = np.where(SAM>threshold)
+
+        threshIceMap = copy(kwargs.get('inputImage'))
+        threshIceMap[no_water_indices]=-9999
+        threshIceMap[high_spec_angle_indices] = -9999
+
+        return SAM,threshIceMap
 
 #For testing:    
 
@@ -166,11 +190,23 @@ class HDR_Image():
 # for rflPath,locPath,obsPath in zip(rfl_fileList,loc_fileList,obs_fileList):
 #     M3stamp = HDR_Image(rflPath,locPath,obsPath)
 #     print (f'{M3stamp.datetime} Started')
-#     M3stamp.destripe_image()
-#     M3stamp.shadow_correction(saveFolder)
-#     M3stamp.spectrum_smoothing()
-#     waterImage,waterCoords,waterDf = M3stamp.locate_ice()
-#     tf.imwrite(f'D:/Data/Ice_Pipeline_Out_4-26-23/water_convolutionFilter.tif',waterImage.astype('float32'))
+#     filterImg = M3stamp.destripe_image()
+#     correctedImg = M3stamp.shadow_correction(saveFolder)
+#     avgImg,smoothImg = M3stamp.spectrum_smoothing()
+#     waterImage,waterCoords,waterDf = M3stamp.locate_ice(inputImage=smoothImg)
+#     noWater_indices = np.where(waterImage==0)
+#     waterImage_complete = copy(smoothImg)
+#     waterImage_complete[noWater_indices] = 0
+#     SAM,IceMap = M3stamp.spectral_angle_mapping(30,inputImage=smoothImg)
+#     xWater,yWater = (np.where(IceMap[:,:,0]!=-9999))
+#     fig = plt.figure()
+#     for x,y in zip(xWater,yWater):
+#         rfl = IceMap[x,y,:]
+#         plt.plot(M3stamp.analyzedWavelengths,IceMap[x,y,:],label=f'({x},{y})')
+#         plt.fill_betweenx(np.arange(rfl.min(),rfl.max(),0.01),1242,1323,color='gray',alpha=0.5)
+#         plt.fill_betweenx(np.arange(rfl.min(),rfl.max(),0.01),1503,1659,color='gray',alpha=0.5)
+#         plt.fill_betweenx(np.arange(rfl.min(),rfl.max(),0.01),1945,2056,color='gray',alpha=0.5)
+#     #tf.imwrite(f'D:/Data/Ice_Pipeline_Out_4-26-23/water_convolutionFilter.tif',waterImage.astype('float32'))
 #     break
 #%%
 
@@ -187,7 +223,7 @@ if __name__ == "__main__":
     print ('Select output/save folder')
     saveFolder = askdir()
     imageProductList = ['originalImages','locationInfo','solarIncidenceImages',\
-                        'water_locations','destripedImages']
+                        'water_locations','destripedImages','spectralAngleMaps']
     for dir in imageProductList:
         try:
             os.mkdir(f'{saveFolder}/{dir}')
@@ -225,6 +261,9 @@ if __name__ == "__main__":
         print ('Locating water-like spectra..')
         waterImage,waterPixels,waterDf = M3stamp.locate_ice()
 
+        print ('Building Spectral Angle Map...')
+        SpecAngleMap,iceMap = M3stamp.spectral_angle_mapping(30)
+
         def save_everything_to(folder):
             saveStartTime = time.time()
             try:
@@ -248,6 +287,7 @@ if __name__ == "__main__":
             np.save(f'{folder}/{M3stamp.datetime}/corrected_{M3stamp.datetime}.npy',correctedImage)
             np.save(f'{folder}/{M3stamp.datetime}/smoothSpec_{M3stamp.datetime}.npy',smoothSpecImg)
             np.save(f'{folder}/{M3stamp.datetime}/waterImage_{M3stamp.datetime}.npy',waterImage)
+            np.save(f'{folder}/{M3stamp.datetime}/specAngleMap_{M3stamp.datetime}.npy',SpecAngleMap)
 
             print ('Saving Images...')
             tf.imwrite(f'{folder}/{M3stamp.datetime}/original_{M3stamp.datetime}.tif',originalImage.astype('float32'),photometric='rgb')
@@ -256,6 +296,8 @@ if __name__ == "__main__":
             tf.imwrite(f'{folder}/{M3stamp.datetime}/corrected_{M3stamp.datetime}.tif',correctedImage.astype('float32'),photometric='rgb')
             tf.imwrite(f'{folder}/{M3stamp.datetime}/smoothSpec_{M3stamp.datetime}.tif',smoothSpecImg.astype('float32'),photometric='rgb')
             tf.imwrite(f'{folder}/{M3stamp.datetime}/waterImage_{M3stamp.datetime}.tif',waterImage.astype('float32'))
+            tf.imwrite(f'{folder}/{M3stamp.datetime}/specAngleImage_{M3stamp.datetime}.tif',iceMap.astype('float32'),photometric='rgb')
+            tf.imwrite(f'{folder}/{M3stamp.datetime}/specAngleImage_{M3stamp.datetime}_readable.tif',iceMap[:,:,0].astype('float32'))
 
             print ('Saving Auxilliary Data...')
             waterDf.to_csv(f'{folder}/aux_data/{M3stamp.datetime}/water_locations.csv')
@@ -274,6 +316,8 @@ if __name__ == "__main__":
                         f'{folder}/destripedImages/filter_{M3stamp.datetime}.tif')
             shutil.copy(f'{folder}/aux_data/{M3stamp.datetime}/water_locations.csv',\
                         f'{folder}/water_locations/iceCoords_{M3stamp.datetime}.csv')
+            shutil.copy(f'{folder}/{M3stamp.datetime}/specAngleImage_{M3stamp.datetime}.tif',\
+                        f'{folder}/spectralAngleMaps/specAngleImage_{M3stamp.datetime}.tif')
             
             print (f'Save complete in {time.time()-saveStartTime:.2f} seconds')
         save_everything_to(saveFolder)

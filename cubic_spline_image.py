@@ -40,9 +40,6 @@ def splineFit(inputImage:np.ndarray,avg_num:int,wvl:np.ndarray):
         averageWvl_index.append(diff_list.index(min(diff_list)))
 
     #print (averageBands.shape)
-    plt.plot(wvl,inputImage[91,100,:])
-    plt.scatter(wvl,inputImage[91,100,:],marker='x')
-    plt.plot(averageWvl,averageBands[91,100,:])
     #print (wvl,averageWvl)
     def spline_func(averaged_spectrum_pixel):
         f = CubicSpline(averageWvl_index,averaged_spectrum_pixel)

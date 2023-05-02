@@ -1,4 +1,5 @@
 ##Water Frost Spectrum
+#%%
 import scipy.interpolate as interp
 import matplotlib.pyplot as plt
 import numpy as np
@@ -10,11 +11,10 @@ def get_USGS_H2OFrost():
     water.columns = ['']
     wavelengths.columns = ['']
 
-    goodIndices = np.where(water>0)[0]
+    goodIndices = np.where((wavelengths*1000>900)&(wavelengths*1000<2600))[0]
 
     wvl,rfl = wavelengths.iloc[goodIndices,0],water.iloc[goodIndices,0]
     #print (f'Water Length: {water.shape}, Wavelength Length: {wavelengths.shape}')
-    #plt.plot(wvl,rfl)
     f = interp.CubicSpline(wvl,rfl)
     xtest = np.linspace(wvl.min(),wvl.max(),59)
 
@@ -23,10 +23,10 @@ def get_USGS_H2OFrost():
 
     #plt.show()
 
-    return f(xtest)
+    return wvl,f(xtest)
 
 if __name__ == "__main__":
-    usgs_spec = get_USGS_H2OFrost()
-    print (np.cos(usgs_spec))
+    wvl,usgs_spec = get_USGS_H2OFrost()
+    #plt.plot(wvl,usgs_spec)
 
 
