@@ -26,7 +26,7 @@ def M3_unzip(select,**kwargs):
 
     ##Asks user what the source directory is for M3 Data
     Tk().withdraw()
-    if select == True:    
+    if select == True:
         hdrFolderPath = askdir()
     elif select == False and kwargs.get('folder') != None:
         hdrFolderPath = kwargs.get('folder')
@@ -37,7 +37,7 @@ def M3_unzip(select,**kwargs):
     
     
     ##Exits script if files are already unzipped 
-    sourcedir_FileList = os.listdir(hdrFolderPath)  
+    sourcedir_FileList = os.listdir(hdrFolderPath)
     if 'extracted_files' in sourcedir_FileList:
         hdrFilesPath = os.path.join(hdrFolderPath,'extracted_files','hdr_files')
         hdrFileList=[]

@@ -1,7 +1,6 @@
 '''
-HDR Image Class and Script for locating Ice Pixels
+HDR Image Class and Script for locating Ice Pixels using both L1 and L2 data from the moon mineralogy mapper
 '''
-
 #%%
 import time
 import spectral as sp
@@ -223,7 +222,7 @@ if __name__ == "__main__":
     print ('Select output/save folder')
     saveFolder = askdir()
     imageProductList = ['originalImages','locationInfo','solarIncidenceImages',\
-                        'water_locations','destripedImages','spectralAngleMaps']
+                        'water_locations','destripedImages','spectralAngleMaps','sampleWaterSpectra']
     for dir in imageProductList:
         try:
             os.mkdir(f'{saveFolder}/{dir}')
@@ -235,6 +234,7 @@ if __name__ == "__main__":
     obs_fileList = [i for i in L1_fileList if i.find('obs')>-1]
 
     ##Image Processing
+    allWater_array = np.zeros((0,59))
     totalStampsLoaded = len(rfl_fileList)
     stamp_progress = 1
     print (f'{totalStampsLoaded} image stamps will be processed.')
@@ -253,7 +253,7 @@ if __name__ == "__main__":
         filteredImage = M3stamp.destripe_image()
 
         print ('Making Li et al., 2018 Shadow Correction...')
-        correctedImage = M3stamp.shadow_correction(saveFolder,inputImage=M3stamp.unprocessedImage)
+        correctedImage = M3stamp.shadow_correction(saveFolder,inputImage=filteredImage)
 
         print ('Smoothing spectra...')
         avgSpecImg,smoothSpecImg = M3stamp.spectrum_smoothing()
@@ -263,6 +263,42 @@ if __name__ == "__main__":
 
         print ('Building Spectral Angle Map...')
         SpecAngleMap,iceMap = M3stamp.spectral_angle_mapping(30)
+        iceMap_df = pd.DataFrame(M3stamp.coordinateGrid[np.where(iceMap[:,:,0]>-9999)])
+        iceMap_df.columns = ['Latitude','Longitude','Elevation']
+
+        print ('Sampling water spectra...')
+        try:
+            os.mkdir(f'{saveFolder}/sampleWaterSpectra/{M3stamp.datetime}')
+        except:
+            pass
+
+        XY_array = np.array(np.where(iceMap>-9999)).T
+        if 0 in XY_array.shape:
+            print (f'{M3stamp.datetime} has no water detections\n\n')
+            stamp_progress+=1
+            continue
+        
+        print (f'There were {XY_array.shape} water detections in {M3stamp.datetime}')
+        randomXY = XY_array[np.random.choice(np.arange(0,XY_array.shape[0],1),10,replace=False),:]
+        random10spectra = iceMap[randomXY[:,0],randomXY[:,1],:]
+        fig,axList = plt.subplots(10,1,figsize=(8,30),dpi=500,layout='constrained')
+        for ax,spec,loc in zip(axList,random10spectra,range(randomXY.shape[0])):
+            ax.plot(M3stamp.analyzedWavelengths,spec)
+            ax.set_title(f'({randomXY[loc,0]},{randomXY[loc,1]})')
+            ax.set_ylabel('Reflectance')
+        fig.suptitle('10 Random Water-Like Spectra')
+        fig.supxlabel('Wavelength (\u03BCm)')
+        plt.savefig(f'{saveFolder}/sampleWaterSpectra/{M3stamp.datetime}/tenRandomSpectra.jpg')
+        
+        for spec,loc in zip(random10spectra,range(randomXY.shape[0])):
+            fig = plt.figure(dpi=300)
+            plt.plot(M3stamp.analyzedWavelengths,spec)
+            plt.title(f'{randomXY[loc,:]}')
+            plt.xlabel('Wavelength (\u03BCm)')
+            plt.ylabel('Reflectance')
+            plt.savefig(f'{saveFolder}/sampleWaterSpectra/{M3stamp.datetime}/{randomXY[loc,0]}_{randomXY[loc,1]}.jpg')
+        
+        allWater_array = np.concatenate((allWater_array,iceMap[XY_array[:,0],XY_array[:,1],:]))
 
         def save_everything_to(folder):
             saveStartTime = time.time()
@@ -300,29 +336,42 @@ if __name__ == "__main__":
             tf.imwrite(f'{folder}/{M3stamp.datetime}/specAngleImage_{M3stamp.datetime}_readable.tif',iceMap[:,:,0].astype('float32'))
 
             print ('Saving Auxilliary Data...')
-            waterDf.to_csv(f'{folder}/aux_data/{M3stamp.datetime}/water_locations.csv')
+            waterDf.to_csv(f'{folder}/aux_data/{M3stamp.datetime}/all_water_locations.csv')
+            iceMap_df.to_csv(f'{folder}/aux_data/{M3stamp.datetime}/specAngle_water_locations.csv')
             np.save(f'{folder}/aux_data/{M3stamp.datetime}/avgSpec.npy',avgSpecImg)
             tf.imwrite(f'{folder}/aux_data/{M3stamp.datetime}/correctedImg.tif',correctedImage.astype('float32'),photometric='rgb')
             tf.imwrite(f'{folder}/aux_data/{M3stamp.datetime}/smoothSpecImg.tif',smoothSpecImg.astype('float32'),photometric='rgb')
             tf.imwrite(f'{folder}/solarIncidenceImages/incidence_{M3stamp.datetime}',M3stamp.solarIncidenceImage.astype('float32'))
             coordDf = pd.DataFrame({'Latitude':M3stamp.coordinateGrid[:,:,0].flatten(),'Longitude':M3stamp.coordinateGrid[:,:,1].flatten(),'Elevation':M3stamp.coordinateGrid[:,:,2].flatten()})
             coordDf.to_csv(f'{folder}/locationInfo/coordGrid_{M3stamp.datetime}')
-
+            fig = plt.figure()
+            plt.plot()
 
             print ('Making copies...')
             shutil.copy(f'{folder}/{M3stamp.datetime}/original_{M3stamp.datetime}.tif',\
                         f'{folder}/originalImages/original_{M3stamp.datetime}.tif')
             shutil.copy(f'{folder}/{M3stamp.datetime}/filter_{M3stamp.datetime}.tif',\
                         f'{folder}/destripedImages/filter_{M3stamp.datetime}.tif')
-            shutil.copy(f'{folder}/aux_data/{M3stamp.datetime}/water_locations.csv',\
+            shutil.copy(f'{folder}/aux_data/{M3stamp.datetime}/specAngle_water_locations.csv',\
                         f'{folder}/water_locations/iceCoords_{M3stamp.datetime}.csv')
             shutil.copy(f'{folder}/{M3stamp.datetime}/specAngleImage_{M3stamp.datetime}.tif',\
                         f'{folder}/spectralAngleMaps/specAngleImage_{M3stamp.datetime}.tif')
             
             print (f'Save complete in {time.time()-saveStartTime:.2f} seconds')
         save_everything_to(saveFolder)
+
         print (f'Stamp ID: {M3stamp.datetime} ({stamp_progress} of {totalStampsLoaded}) complete ({stamp_progress/totalStampsLoaded:.0%})\n\n')
+        plt.close()
         stamp_progress+=1
+
+    np.save(f'{saveFolder}/allWaterSpectra.npy',allWater_array)
+    averageWaterSpectrum = np.mean(allWater_array,axis=0)
+    fig=plt.figure(dpi=300)
+    plt.plot(M3stamp.analyzedWavelengths,averageWaterSpectrum)
+    plt.title('Average Water Spectrum')
+    plt.xlabel('Wavelength (\u03BCm)')
+    plt.ylabel('Reflectance')
+    plt.savefig(f'{saveFolder}/Mean Water Spectrum.jpg')
 
     end = time.time()
     runtime = end-start

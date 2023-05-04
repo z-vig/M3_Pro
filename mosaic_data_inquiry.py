@@ -16,11 +16,11 @@ import copy
 
 def mosaic_data_inquiry():
     print ('Select L2 folder')
-    L2_fileList,L2_filePath = M3_UnZip.M3_unzip(select=False,folder="D:/Data/L2_Data")
+    L2_fileList,L2_filePath = M3_UnZip.M3_unzip(select=True)
     print ('Select L1 folder')
-    L1_fileList,L1_filePath = M3_UnZip.M3_unzip(select=False,folder='D:/Data/L1_Data')
+    L1_fileList,L1_filePath = M3_UnZip.M3_unzip(select=True)
     print ('Select output/save folder')
-    saveFolder = 'D:/Data/Ice_Pipeline_Out_4-21-23'
+    saveFolder = askdir()
 
     try:
         os.mkdir(f'{saveFolder}/mosaicStatistics')
@@ -36,7 +36,7 @@ def mosaic_data_inquiry():
     nBands = M3stamp_sample.analyzedWavelengths.shape[0]
     nStamps = len(rfl_fileList)
 
-    imageStatsArray = np.zeros((nBands,5,nStamps))
+    imageStatsArray = np.zeros((nBands,5,nStamps)) #Row are {Average,Median,Standard Deviation, Max, Min}
     mosaicStatsArray = np.zeros((nBands,5))
     mosaicArray = np.zeros((nBands,0))
     illuminatedMosaic = np.zeros((nBands,0))
@@ -96,7 +96,13 @@ def mosaic_data_inquiry():
     illuminatedMosaicStats[:,3] = illuminatedMax
     illuminatedMosaicStats[:,4] = illuminatedMin
 
-    
+    fileNameList = ['imageStatsArray','mosaicArray','mosaicStatsArray','illuminatedMosaic','illuminatedMosaicStats']
+    for file,name in zip([imageStatsArray,mosaicArray,mosaicStatsArray,illuminatedMosaic,illuminatedMosaicStats],fileNameList):
+            start = time.time()
+            print (f'Saving {name}...')
+            np.save(f'{saveFolder}/mosaicStatistics/{name}.npy',file)
+            print (f'{name} took {time.time()-start:.2f} seconds\n')
+
     return imageStatsArray,mosaicArray,mosaicStatsArray,illuminatedMosaic,illuminatedMosaicStats
 
 if __name__ == "__main__":
