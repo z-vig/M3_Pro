@@ -4,10 +4,11 @@ import scipy.interpolate as interp
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from tkinter.filedialog import askdirectory as askdir
 
-def get_USGS_H2OFrost():
-    water = pd.read_csv(r"D:/Data/USGS_Water_Ice/splib07a_H2O-Ice_GDS136_77K_BECKa_AREF.txt")
-    wavelengths = pd.read_csv(r"D:/Data/USGS_Water_Ice/splib07a_Wavelengths_BECK_Beckman_0.2-3.0_microns.txt")
+def get_USGS_H2OFrost(USGS_folder):
+    water = pd.read_csv(f'{USGS_folder}/splib07a_H2O-Ice_GDS136_77K_BECKa_AREF.txt')
+    wavelengths = pd.read_csv(f'{USGS_folder}/splib07a_Wavelengths_BECK_Beckman_0.2-3.0_microns.txt')
     water.columns = ['']
     wavelengths.columns = ['']
 
@@ -26,7 +27,8 @@ def get_USGS_H2OFrost():
     return wvl,f(xtest)
 
 if __name__ == "__main__":
-    wvl,usgs_spec = get_USGS_H2OFrost()
-    #plt.plot(wvl,usgs_spec)
+    USGS_folder = askdir()
+    wvl,usgs_spec = get_USGS_H2OFrost(USGS_folder)
+    plt.plot(wvl,usgs_spec)
 
 
