@@ -159,7 +159,7 @@ class HDR_Image():
 
         total_pixels = self.unprocessedImage.shape[0]*self.unprocessedImage.shape[1]
 
-        wvl,USGS_Frost = get_USGS_H2OFrost()
+        wvl,USGS_Frost = get_USGS_H2OFrost(USGS_folder='D:/Data/USGS_Water_Ice')
         USGS_Frost = np.expand_dims(USGS_Frost,1)
         USGS_Frost_Array = np.repeat(USGS_Frost,total_pixels,1).T
         USGS_Frost_Array = USGS_Frost_Array.reshape((self.unprocessedImage.shape[0],self.unprocessedImage.shape[1],59))
@@ -343,7 +343,7 @@ if __name__ == "__main__":
             tf.imwrite(f'{folder}/aux_data/{M3stamp.datetime}/smoothSpecImg.tif',smoothSpecImg.astype('float32'),photometric='rgb')
             tf.imwrite(f'{folder}/solarIncidenceImages/incidence_{M3stamp.datetime}',M3stamp.solarIncidenceImage.astype('float32'))
             coordDf = pd.DataFrame({'Latitude':M3stamp.coordinateGrid[:,:,0].flatten(),'Longitude':M3stamp.coordinateGrid[:,:,1].flatten(),'Elevation':M3stamp.coordinateGrid[:,:,2].flatten()})
-            coordDf.to_csv(f'{folder}/locationInfo/coordGrid_{M3stamp.datetime}')
+            tf.imwrite(f'{folder}/locationInfo/coordGrid_{M3stamp.datetime}',M3stamp.coordinateGrid.astype('float32'),photometric='rgb')
             fig = plt.figure()
             plt.plot()
 
