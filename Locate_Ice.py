@@ -213,12 +213,24 @@ class HDR_Image():
 
 #%%
 if __name__ == "__main__":
+    ##Function for getting list of file paths
+    def get_file_list(sorted_folder):
+        fileList = []
+        for root,dir,files in os.walk(sorted_folder):
+            if root.find('hdr_files')>-1:
+                for file in files:
+                    if file[-4:].find('.hdr')>-1:
+                        fileList.append(f'{root}/{file}')
+        return fileList
+
     ##Setup and folder selection
     start = time.time()
     print ('Select L2 folder')
-    L2_fileList,L2_filePath = M3_UnZip.M3_unzip(select=True)
+    L2_sorted_path = askdir()
+    L2_fileList = get_file_list(L2_sorted_path)
     print ('Select L1 folder')
-    L1_fileList,L1_filePath = M3_UnZip.M3_unzip(select=True)
+    L1_sorted_path = askdir()
+    L1_fileList = get_file_list(L1_sorted_path)
     print ('Select output/save folder')
     saveFolder = askdir()
     imageProductList = ['originalImages','locationInfo','solarIncidenceImages',\
@@ -341,9 +353,9 @@ if __name__ == "__main__":
             np.save(f'{folder}/aux_data/{M3stamp.datetime}/avgSpec.npy',avgSpecImg)
             tf.imwrite(f'{folder}/aux_data/{M3stamp.datetime}/correctedImg.tif',correctedImage.astype('float32'),photometric='rgb')
             tf.imwrite(f'{folder}/aux_data/{M3stamp.datetime}/smoothSpecImg.tif',smoothSpecImg.astype('float32'),photometric='rgb')
-            tf.imwrite(f'{folder}/solarIncidenceImages/incidence_{M3stamp.datetime}',M3stamp.solarIncidenceImage.astype('float32'))
+            tf.imwrite(f'{folder}/solarIncidenceImages/incidence_{M3stamp.datetime}.tif',M3stamp.solarIncidenceImage.astype('float32'))
             coordDf = pd.DataFrame({'Latitude':M3stamp.coordinateGrid[:,:,0].flatten(),'Longitude':M3stamp.coordinateGrid[:,:,1].flatten(),'Elevation':M3stamp.coordinateGrid[:,:,2].flatten()})
-            tf.imwrite(f'{folder}/locationInfo/coordGrid_{M3stamp.datetime}',M3stamp.coordinateGrid.astype('float32'),photometric='rgb')
+            tf.imwrite(f'{folder}/locationInfo/coordGrid_{M3stamp.datetime}.tif',M3stamp.coordinateGrid.astype('float32'),photometric='rgb')
             fig = plt.figure()
             plt.plot()
 
