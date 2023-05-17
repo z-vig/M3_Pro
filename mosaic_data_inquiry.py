@@ -10,19 +10,26 @@ import pandas as pd
 import M3_UnZip
 import time
 import spectral as sp
-import Locate_Ice
+import Locate_Ice_TIF
 from tkinter.filedialog import askdirectory as askdir
 import copy
 import spectral as sp
+import tifffile as tf
+import rasterio as rio
+import copy
+import time
 
 def find_all(s,c):
     return [n for n,i in enumerate(s) if i==c]
 
 def mosaic_data_inquiry():
-    print ('Select L2 folder')
-    L2_fileList,L2_filePath = M3_UnZip.M3_unzip(select=True)
-    print ('Select L1 folder')
-    L1_fileList,L1_filePath = M3_UnZip.M3_unzip(select=True)
+    print ('Select RFL Folder')
+    rfl_fileList = 'D:/Data/OP2C_Downloads/L2_sorted/sorted_tif_files/rfl_files' #askdir()
+    print (f'{rfl_fileList} selected\nSelect LOC Folder')
+    loc_fileList = 'D:/Data/OP2C_Downloads/L1_sorted/sorted_tif_files/loc_files' #askdir()
+    print (f'{loc_fileList} selected\nSelect OBS Folder')
+    obs_fileList = 'D:/Data/OP2C_Downloads/L1_sorted/sorted_tif_files/obs_files' #askdir()
+    print (f'{obs_fileList} selected')
     print ('Select output/save folder')
     saveFolder = askdir()
 
@@ -31,12 +38,8 @@ def mosaic_data_inquiry():
     except:
         pass
 
-    rfl_fileList = [i for i in L2_fileList if i.find('rfl')>-1]
-    loc_fileList = [i for i in L1_fileList if i.find('loc')>-1]
-    obs_fileList = [i for i in L1_fileList if i.find('obs')>-1]
-
     ##Mosaic data inquiry
-    M3stamp_sample = Locate_Ice.HDR_Image(rfl_fileList[0],loc_fileList[0],obs_fileList[0])
+    M3stamp_sample = Locate_Ice_TIF.TIF_Image(rfl_fileList[0],loc_fileList[0],obs_fileList[0])
     nBands = M3stamp_sample.analyzedWavelengths.shape[0]
     nStamps = len(rfl_fileList)
 
@@ -49,7 +52,7 @@ def mosaic_data_inquiry():
     stampNum = 0
     progress = 1
     for rflPath,locPath,obsPath in zip(rfl_fileList,loc_fileList,obs_fileList):
-        M3stamp = Locate_Ice.HDR_Image(rflPath,locPath,obsPath)
+        M3stamp = Locate_Ice_TIF.TIF_Image(rflPath,locPath,obsPath)
         image = M3stamp.unprocessedImage
 
         xLight,yLight = M3stamp.get_illuminated_coords()
@@ -109,64 +112,74 @@ def mosaic_data_inquiry():
 
     return imageStatsArray,mosaicArray,mosaicStatsArray,illuminatedMosaic,illuminatedMosaicStats
 
-def mosaic_data_inquiry_large():
-    print ('Select L2 folder')
-    L2_fileList,L2_filePath = M3_UnZip.M3_unzip(select=True)
-    print ('Select L1 folder')
-    L1_fileList,L1_filePath = M3_UnZip.M3_unzip(select=True)
-    print ('Select output/save folder')
-    saveFolder = 'D:/Data/Ice_Pipeline_Out_5-9-23' #askdir()
+def mosaic_data_inquiry_large(imsave=False):
+    L1_folder = 'D:/Data/OP2C_Downloads/L1_sorted'
+    L2_folder = 'D:/Data/OP2C_Downloads/L2_sorted'
+    saveFolder = 'D:/Data/Ice_Pipeline_Out_5-16-23' #askdir()
 
     try:
-        os.mkdir(f'{saveFolder}/mosaicStatistics')
+        os.mkdir(f'{saveFolder}/shaded_removed')
     except:
         pass
+    
+    rfl_fileList = os.listdir(f'{L2_folder}/sorted_tif_files/rfl_cropped')
+    loc_fileList = os.listdir(f'{L1_folder}/sorted_tif_files/loc_cropped')
+    obs_fileList = os.listdir(f'{L1_folder}/sorted_tif_files/obs_cropped')
 
-    rfl_fileList = [i for i in L2_fileList if i.find('rfl')>-1]
-    loc_fileList = [i for i in L1_fileList if i.find('loc')>-1]
-    obs_fileList = [i for i in L1_fileList if i.find('obs')>-1]
+    mosaic_stats_array = np.zeros((len(rfl_fileList),59,2))
 
-    M3stamp_sample = Locate_Ice.HDR_Image(rfl_fileList[0],loc_fileList[0],obs_fileList[0])
-    nBands = M3stamp_sample.analyzedWavelengths.shape[0]
-    nStamps = len(rfl_fileList)
-
-    illuminated_average_array = np.zeros((0,nBands))
-    prog = 1
+    darkRemovedList,rflImgList,locImgList,obsImgList,pixList = [],[],[],[],[]
+    prog = 0
     tot = len(rfl_fileList)
-    for rflPath,locPath,obsPath in zip(rfl_fileList,loc_fileList,obs_fileList):
-        name_ind1 = find_all(rflPath,'\\')[-1]
-        name_ind2 = find_all(rflPath,'_')[0]
-        name = f'{rflPath[name_ind1+1:name_ind2]}'
+    for rfl,loc,obs in zip(rfl_fileList,loc_fileList,obs_fileList):
+        rfl_img = tf.imread(f'{L2_folder}/sorted_tif_files/rfl_cropped/{rfl}')
+        loc_img = tf.imread(f'{L1_folder}/sorted_tif_files/loc_cropped/{loc}')
+        obs_img = tf.imread(f'{L1_folder}/sorted_tif_files/obs_cropped/{obs}')
+        deg_incidence = 180*np.arccos(obs_img[:,:,-1])/np.pi
+        obs_img[:,:,-1] = deg_incidence
 
-        hdr_rfl = sp.envi.open(f'{rflPath}')
-        hdr_obs = sp.envi.open(obsPath)
-        #hdr_loc = sp.envi.open(locPath)
+        rflImgList.append(rfl_img)
+        locImgList.append(loc_img)
+        obsImgList.append(obs_img)
+       
+        dark_pixels = np.where(deg_incidence>90)
+        pixList.append(dark_pixels)
+
+        darkRemovedImage = copy.copy(rfl_img)
+        darkRemovedImage[dark_pixels]=-9999
+        darkRemovedList.append(darkRemovedImage)
+
+        rfl_stats = np.zeros((59,2))
+        for band in range(rfl_img.shape[2]):
+             x = np.where(darkRemovedImage[:,:,band]>-9999)[0]
+             y = np.where(darkRemovedImage[:,:,band]>-9999)[1]
+             rfl_stats[band,0] = rfl_img[x,y,band].mean()
+             rfl_stats[band,1] = rfl_img[x,y,band].std()
         
-        wvl = np.array(hdr_rfl.bands.centers)
-        allowedInd = np.where((wvl>900)&(wvl<2600))[0]
-        allowedWvl = wvl[allowedInd]
+        mosaic_stats_array[prog,:,:] = rfl_stats
         
-        rfl_image = hdr_rfl.read_bands(allowedInd)
-        #loc_image = hdr_loc.read_bands([0,1])
-        obs_image = hdr_obs.read_band(-1)
-        
-        solar_incidence_image = 180*np.arccos(obs_image)/np.pi
-        xLight,yLight = (np.where(solar_incidence_image<90))
-        shape = rfl_image.shape
-        pixels = rfl_image.reshape(shape[0]*shape[1],shape[2])
-        
-        illuminatedPixels = rfl_image[xLight,yLight]
-        illuminatedAvg = np.mean(illuminatedPixels,axis=0)
-        
-        illuminated_average_array = np.concatenate([illuminated_average_array,np.expand_dims(illuminatedAvg,0)])
-        print (f'\r{prog} of {tot} complete ({prog/tot:.0%}), ({illuminated_average_array.shape})',end='\r')
+        if imsave == True:
+            darkRemovedImage_save = copy.copy(darkRemovedImage)
+            darkRemovedImage_save = np.moveaxis(darkRemovedImage_save,2,0)
+            with rio.open(f'{saveFolder}/shaded_removed/{rfl[:-4]}_noDark.tif','w',\
+                            driver='GTiff',height=darkRemovedImage_save.shape[1],\
+                            width=darkRemovedImage_save.shape[2],\
+                            count=darkRemovedImage_save.shape[0],\
+                            dtype=darkRemovedImage_save.dtype,nodata=-9999) as f:
+                            f.write(darkRemovedImage_save)
+
+        print (f'\r{prog+1} of {tot} ({prog/tot:.0%})',end='\r')
         prog+=1
 
-    np.save(f'{saveFolder}/illuminated_average_array.npy',illuminated_average_array)
-    return illuminated_average_array
+    np.save('D:/Data/Ice_Pipeline_Out_5-16-23/mosaic_stats_array.npy',mosaic_stats_array)
+    return darkRemovedList
      
 
 if __name__ == "__main__":
+    start = time.time()
     print('Creating image and mosaic statistics...')
-    illuminated_average_array = mosaic_data_inquiry_large()
+    dark_removed = mosaic_data_inquiry_large()
     print ('Statistics calculated! Success!')
+    end = time.time()
+
+    print (f'Program completed in {(end-start)/60:.3f} minutes')

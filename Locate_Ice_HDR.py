@@ -7,7 +7,7 @@ import spectral as sp
 import numpy as np
 import spec_plotting
 import matplotlib.pyplot as plt
-import DestripeImage
+import destripe_image
 from copy import copy
 import cubic_spline_image as csi
 import pandas as pd
@@ -87,7 +87,7 @@ class HDR_Image():
     
     def destripe_image(self)->np.ndarray:
         startTime = time.time()
-        self.filteredImage = DestripeImage.fourier_filter(self.unprocessedImage)
+        self.filteredImage = destripe_image.fourier_filter(self.unprocessedImage)
         print (f'Destriping complete in {time.time()-startTime:.1f} seconds')
         return self.filteredImage
     
