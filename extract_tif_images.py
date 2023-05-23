@@ -33,10 +33,12 @@ def extract(folderPath):
     print ('Folders created!')
     prog = 1
     tot = len(filePathList)
+    stampNameList = []
     for filePath in filePathList:
         name_index_start = find_all(filePath,'/')[-1]
         name_index_end = find_all(filePath,'_')[-2]
         stampName = filePath[name_index_start+1:name_index_end]
+        stampNameList.append(stampName)
         stampType = filePath[-7:-4]
         if stampType == 'rfl':
             if f'{stampName}_rfl.tif' not in os.listdir(f'{folderPath}/sorted_tif_files/{stampType}_files'):
@@ -70,6 +72,10 @@ def extract(folderPath):
         #print (f'{prog} of {tot}')
         print (f'\r{prog} of {tot} files extracted ({prog/tot:.0%})',end='\r')
         prog+=1
+    
+    with open(f'{folderPath}/all_image_names.txt','w') as f:
+        for name in stampNameList:
+            f.write(f'{name}*\n')
 
 if __name__ == "__main__":
     l1_folder = 'D:/Data/OP2C_Downloads/L1_sorted'

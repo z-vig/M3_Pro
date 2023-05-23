@@ -24,7 +24,7 @@ def find(s, ch):
 
 class TIF_Image():
     # Constructor method
-    def __init__(self,rfl_path,loc_path,obs_path,hdr_path):
+    def __init__(self,rfl_path,loc_path,obs_path,auxInfo_path):
         self.rfl_image = tf.imread(rfl_path)
         self.loc_data = tf.imread(loc_path)
         self.obs_data = tf.imread(obs_path)
@@ -63,10 +63,6 @@ class TIF_Image():
         return self._analyzedWavelengths
     
     @property
-    def unprocessedImage(self)->np.ndarray:
-        return self.rfl_image.read_bands(self.allowedIndices)
-    
-    @property
     def coordinateGrid(self)->np.ndarray: #Array with dim 3 labels: {lat,long,elevation}
         coordArray = np.zeros((*self.unprocessedImage.shape[0:2],3))
         coordArray[:,:,0] = self.loc_data.read_band(1)
@@ -88,7 +84,7 @@ class TIF_Image():
     
     def destripe_image(self)->np.ndarray:
         startTime = time.time()
-        self.filteredImage = destripe_image.fourier_filter(self.unprocessedImage)
+        self.filteredImage = destripe_image.fourier_filter(self.rfl_image)
         print (f'Destriping complete in {time.time()-startTime:.1f} seconds')
         return self.filteredImage
     
@@ -181,15 +177,13 @@ class TIF_Image():
 #For testing:    
 
 # #%%
-# L2_fileList,L2_filePath = M3_UnZip.M3_unzip(select=True)
-# L1_fileList,L1_filePath = M3_UnZip.M3_unzip(select=True)
+# rfl_fileList = askdir()
+# loc_fileList = askdir()
+# obs_fileList = askdir()
 # saveFolder = askdir()
-# rfl_fileList = [i for i in L2_fileList if i.find('rfl')>-1]
-# loc_fileList = [i for i in L1_fileList if i.find('loc')>-1]
-# obs_fileList = [i for i in L1_fileList if i.find('obs')>-1]
 # #%%
 # for rflPath,locPath,obsPath in zip(rfl_fileList,loc_fileList,obs_fileList):
-#     M3stamp = HDR_Image(rflPath,locPath,obsPath)
+#     M3stamp = TIF_Image(rflPath,locPath,obsPath)
 #     print (f'{M3stamp.datetime} Started')
 #     filterImg = M3stamp.destripe_image()
 #     correctedImg = M3stamp.shadow_correction(saveFolder)
@@ -209,7 +203,7 @@ class TIF_Image():
 #         plt.fill_betweenx(np.arange(rfl.min(),rfl.max(),0.01),1945,2056,color='gray',alpha=0.5)
 #     #tf.imwrite(f'D:/Data/Ice_Pipeline_Out_4-26-23/water_convolutionFilter.tif',waterImage.astype('float32'))
 #     break
-#%%
+# #%%
 
 
 

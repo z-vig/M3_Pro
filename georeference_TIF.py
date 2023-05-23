@@ -195,7 +195,10 @@ if __name__ == "__main__":
                             UNIT["meter",1]]')
         n = 1
         tot = len(os.listdir(og_img_path))
-        for og,bp in zip(os.listdir(og_img_path),os.listdir(loc_img_path)):
+        srcFolder = os.listdir(og_img_path)
+        dstFolder = os.listdir(loc_img_path)
+        srcFolder.sort(),dstFolder.sort()
+        for og,bp in zip(srcFolder,dstFolder):
             ogPath = f'{og_img_path}/{og}'
             locPath = f'{loc_img_path}/{bp}'
             print (f'\rProcessing {n} of {tot} ({n/tot:.0%})',end='\r')
