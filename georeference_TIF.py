@@ -97,8 +97,8 @@ def georef(originalStampPath:str,locBackplanePath:str,saveFolder:str,crs_wkt:str
 
     transform = from_gcps(gcps)
     
-    name_index = find_all(originalStampPath,'/')[-1]
-    stampName = originalStampPath[name_index:-4]
+    #name_index = find_all(originalStampPath,'/')[-1]
+    stampName = os.path.basename(originalStampPath)
     with rio.open(f'{saveFolder}/{stampName}_georef.tif','w',
             driver='GTiff',
             height=originalStamp.shape[1],
@@ -194,13 +194,17 @@ if __name__ == "__main__":
                             PARAMETER["false_northing",0],\
                             UNIT["meter",1]]')
         n = 1
-        tot = len(os.listdir(og_img_path))
-        srcFolder = os.listdir(og_img_path)
+        srcFolder = [i for i in os.listdir(og_img_path) if i.find('.ovr')==-1]
         dstFolder = os.listdir(loc_img_path)
         srcFolder.sort(),dstFolder.sort()
+        tot = len(srcFolder)
         for og,bp in zip(srcFolder,dstFolder):
-            ogPath = f'{og_img_path}/{og}'
-            locPath = f'{loc_img_path}/{bp}'
+            ogPath = os.path.join(og_img_path,og)
+            locPath = os.path.join(loc_img_path,bp)
+            index = find_all(os.path.basename(ogPath),'_')[0]
+            if os.path.basename(ogPath)[:index]!=os.path.basename(locPath)[:index]:
+                print (f'{os.path.basename(ogPath)}!={os.path.basename(locPath)}')
+                raise ValueError('Backplane does not match image!')
             print (f'\rProcessing {n} of {tot} ({n/tot:.0%})',end='\r')
             georef(ogPath,locPath,saveFolder,crs)
             n+=1

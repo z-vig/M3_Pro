@@ -29,22 +29,6 @@ class TIF_Image():
         self.loc_data = tf.imread(loc_path)
         self.obs_data = tf.imread(obs_path)
 
-        self.hdr = sp.envi.open(hdr_path)
-
-        stampFileName = self.hdr.filename
-        dateTimeIndex = find(stampFileName,'t')[-1]
-
-        date = f"{stampFileName[dateTimeIndex-8:dateTimeIndex-4]}-{stampFileName[dateTimeIndex-4:dateTimeIndex-2]}"\
-                f"-{stampFileName[dateTimeIndex-2:dateTimeIndex]}"
-
-        time = f"{stampFileName[dateTimeIndex+1:dateTimeIndex+3]}-{stampFileName[dateTimeIndex+3:dateTimeIndex+5]}"\
-                f"-{stampFileName[dateTimeIndex+5:dateTimeIndex+7]}"
-        
-        self._dateTime = f'{date}_{time}'
-
-        self.bandCenters = np.array(self.hdr.bands.centers)
-        self.allowedIndices = np.where((self.bandCenters>900)&(self.bandCenters<2600))[0]
-
     @property
     def datetime(self)->str:
         return self._dateTime

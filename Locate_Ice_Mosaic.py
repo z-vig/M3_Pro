@@ -23,6 +23,15 @@ import rasterio
 def find_all(s, ch):
     return [i for i, ltr in enumerate(s) if ltr == ch]
 
+def load_tifs(pathList:list)->list:
+    tif_list = []
+    prog,tot = 1,len(pathList)
+    for path in pathList:
+        tif_list.append(tf.imread(path))
+        print (f'\r{prog} of {tot} retrived. ({prog/tot:.0%})',end='\r')
+        prog+=1
+    return tif_list
+
 def get_metaDataList(imgList:list)->list:
     dictList = []
     for img in imgList:
@@ -40,54 +49,23 @@ def get_metaDataList(imgList:list)->list:
     return dictList
 
 class M3_Mosaic():
-    def __init__(self,saveFolderPath) -> None:
-        self.saveFolderPath = saveFolderPath
-
-        print ('Fetching rfl Images...')
-        rflPathList = os.listdir(f'{self.saveFolderPath}/rfl_cropped')
-        self.rflImgList = []
-        prog,tot = 1,len(rflPathList)
-        for img in rflPathList:
-            print (f'\r{prog} of {tot} ({prog/tot:.0%})',end='\r')
-            self.rflImgList.append(tf.imread(f'{self.saveFolderPath}/rfl_cropped/{img}'))
-            prog+=1
-    
-    @property
-    def stampNames(self)->list:
-        with open(f'{self.saveFolderPath}/stampNames.txt','r') as f:
-            names = f.readlines()
-        return [name[:-2] for name in names]
-    
-    @property
-    def rflImages(self)->list:
-        return self.rflImgList
-    
-    @property
-    def locImages(self)->list:
-        pathList = os.listdir(f'{self.saveFolderPath}/loc_cropped')
-        imgList = []
-        for img in pathList:
-            imgList.append(tf.imread(f'{self.saveFolderPath}/locs_cropped/{img}'))
-        return imgList
-    
-    @property
-    def obsImages(self)->list:
-        pathList = os.listdir(f'{self.saveFolderPath}/obs_cropped')
-        imgList = []
-        for img in pathList:
-            imgList.append(tf.imread(f'{self.saveFolderPath}/obs_cropped/{img}'))
-        return imgList
+    def __init__(self,rflImages:list,locImages:list,obsImages:list,stampNames:list,folderPath:str) -> None:
+        self.rflImages = rflImages
+        self.locImages = locImages
+        self.obsImages = obsImages
+        self.stampNames = stampNames
+        self.folderPath = folderPath
     
     @property
     def analyzedWavelengths(self)->np.ndarray:
-        df = pd.read_csv(f'{self.saveFolderPath}/bandInfo.csv')
+        df = pd.read_csv(os.path.join(self.folderPath,'bandInfo.csv'))
         bandArr = df.to_numpy()
         return bandArr[:,2]
     
     @property
     def statistics(self)->np.ndarray:
         try:
-            stats_arr = np.load(f'{self.saveFolderPath}/mosaic_stats_array.npy')
+            stats_arr = np.load(f'{self.folderPath}/mosaic_stats_array.npy')
         except:
             raise FileNotFoundError('Run the mosaic data inquiry script first!')
         return stats_arr
@@ -109,12 +87,19 @@ class M3_Mosaic():
         kwargs = {**defaultKwargs,**kwargs}
         startTime = time.time()
         nameList,imageList = kwargs.get('inputImageDictionary').keys(),kwargs.get('inputImageDictionary').values()
+
+        try:
+            os.mkdir(os.path.join(self.folderPath,'rfl_correction'))
+        except:
+            pass
         
         self.correctedImageDict = {}
         R_BIDIRECTIONAL = np.mean(self.statistics[:,:,0],axis=0)
         prog,tot = 1,len(nameList)
         for name,image in zip(nameList,imageList):
-            self.correctedImageDict.update({name:image/R_BIDIRECTIONAL})
+            corrected_image = image/R_BIDIRECTIONAL
+            self.correctedImageDict.update({name:corrected_image})
+            tf.imwrite(os.path.join(self.folderPath,'rfl_correction',f'{name}_corrected.tif'),corrected_image)
             print(f'\r{prog} of {tot} ({prog/tot:.0%})',end='\r')
             prog+=1
         print (f'>>>Shadow correction complete in {time.time()-startTime:.1f} seconds')
@@ -125,12 +110,18 @@ class M3_Mosaic():
         kwargs = {**defaultKwargs,**kwargs}
         startTime = time.time()
         nameList,imageList = kwargs.get('inputImageDictionary').keys(),kwargs.get('inputImageDictionary').values()
+        
+        try:
+            os.mkdir(os.path.join(self.folderPath,'rfl_smooth'))
+        except:
+            pass
 
         self.smoothDict = {}
         prog,tot = 1,len(nameList)
         for name,image in zip(nameList,imageList):
             avgWvl,avgSpectrumImage,smoothSpectrumImage = csi.splineFit(image,5,self.analyzedWavelengths)
             self.smoothDict.update({name:smoothSpectrumImage})
+            tf.imwrite(os.path.join(self.folderPath,'rfl_smooth',f'{name}_smooth.tif'),smoothSpectrumImage.astype('float32'),photometric='rgb')
             print(f'{prog} of {tot} ({prog/tot:.0%})')
             prog+=1
         
@@ -142,6 +133,11 @@ class M3_Mosaic():
         kwargs = {**defaultKwargs,**kwargs}
         startTime = time.time()
         nameList,imageList = kwargs.get('inputImageDictionary').keys(),kwargs.get('inputImageDictionary').values()
+
+        try:
+            os.mkdir(os.path.join(self.folderPath,'water_locations'))
+        except:
+            pass
 
         band1_indices = np.where((self.analyzedWavelengths>1242)&(self.analyzedWavelengths<1323))[0]
         band2_indices = np.where((self.analyzedWavelengths>1503)&(self.analyzedWavelengths<1659))[0]
@@ -165,33 +161,100 @@ class M3_Mosaic():
             band3_Array = get_bandArray(band3_indices,'Band 3')
 
             self.waterLocations = np.zeros(band1_Array.shape)
-            self.waterCoords_numpy = np.where((band1_Array==1)&(band2_Array==1)&(band3_Array==1)&(np.average(kwargs.get('inputImage'),axis=2)>0))
+            self.waterCoords_numpy = np.where((band1_Array==1)&(band2_Array==1)&(band3_Array==1)&(np.average(image,axis=2)>0))
             self.waterLocations[self.waterCoords_numpy] = 1
 
             self.waterCoords_map = mapCoords[self.waterCoords_numpy[0],self.waterCoords_numpy[1],:]
-            waterDf = pd.DataFrame(self.waterCoords_map)
-            waterDf.columns = ['Latitude','Longitude','Elevation']
+            
+            df_data = np.concatenate([self.waterCoords_map,np.array([*self.waterCoords_numpy]).T],axis=1)
 
-            waterLocateDict.update({name:waterDf})
+            waterDf = pd.DataFrame(df_data)
+            waterDf.columns = ['Latitude','Longitude','Elevation','x','y']
+
+            waterDf.to_csv(os.path.join(self.folderPath,'water_locations',f'{name}.csv'))
         
         print(f'>>>Ice located in {time.time()-startTime:.1f} seconds')
         return waterLocateDict
+
+    def spectral_angle_mapping(self,threshold:float,**kwargs)->tuple[np.ndarray,np.ndarray]:
+        defaultKwargs = {'inputImageDict':self.smoothDict}
+        kwargs = {**defaultKwargs,**kwargs}
+        nameList,imageList = kwargs.get('inputImageDictionary').keys(),kwargs.get('inputImageDictionary').values()
+        
+        ##Getting waterlocations in numpy coordinates
+        try:
+            water_loc_path_list = [os.path.join(self.folderPath,i) for i in os.listdir(os.path.join(self.folderPath,'water_locations'))]
+        except:
+            raise FileNotFoundError('Run the locate_ice method first!')
+        
+        specAngMapDict= {}
+        for name,image,water_loc_path in zip(nameList,imageList,water_loc_path_list):
+            total_pixels = image.shape[0]*image.shape[1]
+            water_loc = pd.read_csv(water_loc_path)
+            x,y = water_loc.iloc[:,4],water_loc.iloc[:,5]
+
+            wvl,USGS_Frost = get_USGS_H2OFrost(USGS_folder='D:/Data/USGS_Water_Ice')
+            USGS_Frost = np.expand_dims(USGS_Frost,1)
+            USGS_Frost_Array = np.repeat(USGS_Frost,total_pixels,1).T
+            USGS_Frost_Array = USGS_Frost_Array.reshape((self.image.shape[0],self.image.shape[1],59))
+
+            M,I = image,USGS_Frost_Array
+
+            specAngleMap = 180*np.arccos(np.einsum('ijk,ijk->ij',M,I)/(np.linalg.norm(M,axis=2)*np.linalg.norm(I,axis=2)))/np.pi
+            no_water_indices = np.where(self.waterLocations==0)
+            high_spec_angle_indices = np.where(specAngleMap>threshold)
+
+            threshIceMap = copy(image)
+            threshIceMap[no_water_indices]=-9999
+            threshIceMap[high_spec_angle_indices] = -9999
+
+        return specAngleMap,threshIceMap
     
 
 if __name__ == '__main__':
     print ('Select Analysis Folder:')
     folderPath = askdir()
-    largeMosaic = M3_Mosaic(folderPath)
-    print (f'-----Beginning Mosaic analysis of {len(largeMosaic.stampNames)} images-----')
-    print ('Destriping Images...')
-    dedict = largeMosaic.destripe_images()
-    print ('Running Li et al., 2018 Shadow Correction...')
-    cordict = largeMosaic.shadow_correction()
-    print ('Smoothing spectrum...')
-    smoothdict = largeMosaic.spectrum_smoothing()
-    print ('locating ice...')
-    waterlocatedict = largeMosaic.locate_ice()
+    all_rfl_paths = [os.path.join(folderPath,'rfl_cropped',i) for i in os.listdir(os.path.join(folderPath,'rfl_cropped'))]
+    all_loc_paths = [os.path.join(folderPath,'loc_cropped',i) for i in os.listdir(os.path.join(folderPath,'loc_cropped'))]
+    all_obs_paths = [os.path.join(folderPath,'obs_cropped',i) for i in os.listdir(os.path.join(folderPath,'obs_cropped'))]
 
+    with open(os.path.join(folderPath,'stampNames.txt')) as f:
+        all_names = f.readlines()
+    all_names = [i[:-2] for i in all_names]
+    
+    def batch_list(input,n):
+        return [input[i:i+n] for i in range(0,len(input),n)]
 
+    N = 5
+    batch_rfl_paths = batch_list(all_rfl_paths,N)
+    batch_loc_paths = batch_list(all_loc_paths,N)
+    batch_obs_paths = batch_list(all_obs_paths,N)
+    all_names_split = batch_list(all_names,N)
 
+    prog,tot=0,len(all_rfl_paths)
+    for n in range(len(batch_rfl_paths)):
+        print ('Retrieving RFL Tifs...')
+        batch_rfl = load_tifs(batch_rfl_paths[n])
+        print ('\nRetrieving LOC Tifs...')
+        batch_loc = load_tifs(batch_loc_paths[n])
+        print ('\nRetrieving OBS Tifs...')
+        batch_obs = load_tifs(batch_obs_paths[n])
+        batch_names = all_names_split[n]
+    
+        batchMosaic = M3_Mosaic(batch_rfl,batch_loc,batch_obs,batch_names,folderPath)
+        prog = prog+len(batchMosaic.stampNames)
+        print (f'\n-----Beginning Mosaic analysis of {len(batchMosaic.stampNames)} ({prog} of {tot})images-----')
+        print ('Destriping Images...')
+        dedict = batchMosaic.destripe_images()
+        print ('Running Li et al., 2018 Shadow Correction...')
+        cordict = batchMosaic.shadow_correction()
+        print ('Smoothing spectrum...')
+        smoothdict = batchMosaic.spectrum_smoothing()
+        print ('locating ice...')
+        waterlocatedict = batchMosaic.locate_ice()
 
+        print ('\nRemoval from memory...')
+        del batch_rfl,batch_loc,batch_obs
+        
+
+        

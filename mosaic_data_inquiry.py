@@ -220,7 +220,7 @@ def mosaic_data_inquiry_large_thresholdRFL(imsave=False):
             pass
         
         prog,tot = 1,len(rfl_fileList)
-        for file in rfl_fileList:
+        for file,brightImg in zip(rfl_fileList,brightImageList):
             brightImg_save = copy.copy(brightImg)
             brightImg_save = np.expand_dims(brightImg_save,2)
             brightImg_save = np.moveaxis(brightImg_save,2,0)
