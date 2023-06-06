@@ -29,7 +29,7 @@ def stereo_project(lat:float,long:float)->tuple:
             2*1737400*np.tan(np.pi/4-np.pi*abs(lat/360))*np.cos(np.pi*long/180))
 
 #Function for adding georeference tags to a tiff image, given a location backplane
-def georef(originalStampPath:str,locBackplanePath:str,saveFolder:str,crs_wkt:str)->np.ndarray:
+def georef(originalStampPath:str,locBackplanePath:str,saveFolder:str,crs_wkt:str,no_data_value:int)->np.ndarray:
     ##Loading images from paths and defining lat/long coordinates
     originalStamp = tf.imread(originalStampPath)
     if len(originalStamp.shape)==2:
@@ -99,7 +99,7 @@ def georef(originalStampPath:str,locBackplanePath:str,saveFolder:str,crs_wkt:str
     
     #name_index = find_all(originalStampPath,'/')[-1]
     stampName = os.path.basename(originalStampPath)
-    with rio.open(f'{saveFolder}/{stampName}_georef.tif','w',
+    with rio.open(f'{saveFolder}/{stampName[:-4]}_georef.tif','w',
             driver='GTiff',
             height=originalStamp.shape[1],
             width = originalStamp.shape[2],
@@ -108,7 +108,7 @@ def georef(originalStampPath:str,locBackplanePath:str,saveFolder:str,crs_wkt:str
             crs=crs_wkt,
             transform=transform,
             interleave = 'pixel',
-            nodata = -9999
+            nodata = no_data_value
                 ) as img:
         img.write(originalStamp)
 
@@ -141,6 +141,7 @@ if __name__ == "__main__":
             raise InterruptedError('Georeference canceled!')
         else:
             print (f'{saveFolder} selected.')
+        no_data_value = input('No Data Value: ')
 
         crs = CRS.from_wkt('PROJCS["Moon 2000 South Pole Stereographic",\
                             GEOGCS["Moon 2000",\
@@ -156,7 +157,7 @@ if __name__ == "__main__":
                             PARAMETER["false_northing",0],\
                             UNIT["meter",1]]')
         print (f'Georeferencing {originalImage} and saving to {saveFolder}...')
-        img,allgcps = georef(originalImage,locBackplane,saveFolder,crs)
+        img,allgcps = georef(originalImage,locBackplane,saveFolder,crs,no_data_value)
         with open('D:/Data/gcps.txt','w') as f:
             for i in allgcps:
                 num_list = list(i)
@@ -180,6 +181,7 @@ if __name__ == "__main__":
             pass
         saveFolder = f'{og_img_path}_georeferenced' #'D:/Data/OP2C_Downloads/georeferenced_images'
         print(f'{saveFolder} selected\n')
+        no_data_value = input('No Data Value: ')
         crs = CRS.from_wkt('PROJCS["Moon 2000 South Pole Stereographic",\
                             GEOGCS["Moon 2000",\
                             DATUM["D_Moon_2000",\
@@ -202,13 +204,16 @@ if __name__ == "__main__":
             ogPath = os.path.join(og_img_path,og)
             locPath = os.path.join(loc_img_path,bp)
             index = find_all(os.path.basename(ogPath),'_')[0]
-            if os.path.basename(ogPath)[:index]!=os.path.basename(locPath)[:index]:
+            #print (os.path.basename(ogPath)[:index],os.path.basename(locPath)[3:index+3])
+            if os.path.basename(ogPath)[:index]!=os.path.basename(locPath)[3:index+3]:
                 print (f'{os.path.basename(ogPath)}!={os.path.basename(locPath)}')
                 raise ValueError('Backplane does not match image!')
             print (f'\rProcessing {n} of {tot} ({n/tot:.0%})',end='\r')
-            georef(ogPath,locPath,saveFolder,crs)
+            georef(ogPath,locPath,saveFolder,crs,no_data_value)
             n+=1
         print (f'Georeferencing complete!-----Elapsed time: {(time.time()-start)/60:.2f} minutes.')
     
     else:
         raise SyntaxError('Please select a valid processing option.')
+
+# %%

@@ -129,22 +129,31 @@ class M3_Mosaic():
         return self.smoothDict
     
     def locate_ice(self,**kwargs)->tuple[np.ndarray,np.ndarray,pd.DataFrame]:
-        defaultKwargs = {'inputImageDictionary':self.smoothDict}
+        ##Loading all necessary data
+        try:
+            defaultKwargs = {'inputImageDictionary':self.smoothDict}
+        except:
+            defaultKwargs = {'inputImageDictionary':None}
+
         kwargs = {**defaultKwargs,**kwargs}
         startTime = time.time()
         nameList,imageList = kwargs.get('inputImageDictionary').keys(),kwargs.get('inputImageDictionary').values()
 
+        ##Making save directory
         try:
             os.mkdir(os.path.join(self.folderPath,'water_locations'))
         except:
             pass
-
+        
+        ##Getting relevant band indices
         band1_indices = np.where((self.analyzedWavelengths>1242)&(self.analyzedWavelengths<1323))[0]
         band2_indices = np.where((self.analyzedWavelengths>1503)&(self.analyzedWavelengths<1659))[0]
         band3_indices = np.where((self.analyzedWavelengths>1945)&(self.analyzedWavelengths<2056))[0]
         allBand_indices = np.concatenate((band1_indices,band2_indices,band3_indices))
 
-        waterLocateDict = {}
+        ##For each image in batch, find all the minima
+        self.waterLocateDict = {}
+        prog,tot=1,len(imageList)
         for name,image,mapCoords in zip(nameList,imageList,self.locImages):
             diff_array = np.zeros(image.shape)
             for band in range(image.shape[2]-1): #The last band will be all zeros
@@ -156,12 +165,16 @@ class M3_Mosaic():
                     band_arr[np.where((diff_array[:,:,i]!=diff_array[:,:,i+1])&(diff_array[:,:,i]==True))] = 1
                 return band_arr
 
-            band1_Array = get_bandArray(band1_indices,'Band 1')
-            band2_Array = get_bandArray(band2_indices,'Band 2')
-            band3_Array = get_bandArray(band3_indices,'Band 3')
+            band1_array = get_bandArray(band1_indices,'Band 1')
+            band2_array = get_bandArray(band2_indices,'Band 2')
+            band3_array = get_bandArray(band3_indices,'Band 3')
+            allband_array = np.zeros(image.shape)
+            for i in range(1,image.shape[2]-1):
+                x,y  = (np.where((diff_array[:,:,i]!=diff_array[:,:,i+1])&(diff_array[:,:,i]==True)))
+                allband_array[x,y,i+1] = 1
 
-            self.waterLocations = np.zeros(band1_Array.shape)
-            self.waterCoords_numpy = np.where((band1_Array==1)&(band2_Array==1)&(band3_Array==1)&(np.average(image,axis=2)>0))
+            self.waterLocations = np.zeros(band1_array.shape)
+            self.waterCoords_numpy = np.where((band1_array==1)&(band2_array==1)&(band3_array==1)&(np.average(image,axis=2)>0))
             self.waterLocations[self.waterCoords_numpy] = 1
 
             self.waterCoords_map = mapCoords[self.waterCoords_numpy[0],self.waterCoords_numpy[1],:]
@@ -170,43 +183,56 @@ class M3_Mosaic():
 
             waterDf = pd.DataFrame(df_data)
             waterDf.columns = ['Latitude','Longitude','Elevation','x','y']
+            self.waterLocateDict.update({name:allband_array})
 
             waterDf.to_csv(os.path.join(self.folderPath,'water_locations',f'{name}.csv'))
+            print (f'\r{prog} of {tot} ({prog/tot:.1%})',end='\r')
+            prog+=1
         
         print(f'>>>Ice located in {time.time()-startTime:.1f} seconds')
-        return waterLocateDict
+        return self.waterLocateDict
 
     def spectral_angle_mapping(self,threshold:float,**kwargs)->tuple[np.ndarray,np.ndarray]:
-        defaultKwargs = {'inputImageDict':self.smoothDict}
+        try:
+            defaultKwargs = {'inputImageDict':self.smoothDict}
+        except:
+            defaultKwargs = {'inputImageDict':None}
+
         kwargs = {**defaultKwargs,**kwargs}
         nameList,imageList = kwargs.get('inputImageDictionary').keys(),kwargs.get('inputImageDictionary').values()
         
         ##Getting waterlocations in numpy coordinates
         try:
-            water_loc_path_list = [os.path.join(self.folderPath,i) for i in os.listdir(os.path.join(self.folderPath,'water_locations'))]
+            water_loc_path_list = [os.path.join(self.folderPath,'water_locations',i) for i in os.listdir(os.path.join(self.folderPath,'water_locations'))]
         except:
             raise FileNotFoundError('Run the locate_ice method first!')
         
         specAngMapDict= {}
+        prog,tot=1,len(imageList)
         for name,image,water_loc_path in zip(nameList,imageList,water_loc_path_list):
             total_pixels = image.shape[0]*image.shape[1]
             water_loc = pd.read_csv(water_loc_path)
-            x,y = water_loc.iloc[:,4],water_loc.iloc[:,5]
+            x,y = np.array(water_loc.iloc[:,4]).astype(int),np.array(water_loc.iloc[:,5]).astype(int)
+            water_locations_array = np.zeros((image.shape[:2]))
+            water_locations_array[x,y] = 1
 
             wvl,USGS_Frost = get_USGS_H2OFrost(USGS_folder='D:/Data/USGS_Water_Ice')
             USGS_Frost = np.expand_dims(USGS_Frost,1)
             USGS_Frost_Array = np.repeat(USGS_Frost,total_pixels,1).T
-            USGS_Frost_Array = USGS_Frost_Array.reshape((self.image.shape[0],self.image.shape[1],59))
+            USGS_Frost_Array = USGS_Frost_Array.reshape((image.shape[0],image.shape[1],59))
 
             M,I = image,USGS_Frost_Array
 
             specAngleMap = 180*np.arccos(np.einsum('ijk,ijk->ij',M,I)/(np.linalg.norm(M,axis=2)*np.linalg.norm(I,axis=2)))/np.pi
-            no_water_indices = np.where(self.waterLocations==0)
+            no_water_indices = np.where(water_locations_array==0)
             high_spec_angle_indices = np.where(specAngleMap>threshold)
 
             threshIceMap = copy(image)
             threshIceMap[no_water_indices]=-9999
             threshIceMap[high_spec_angle_indices] = -9999
+
+            print (f'\r{prog} of {tot} ({prog/tot:.1%})',end='\r')
+            prog+=1
 
         return specAngleMap,threshIceMap
     
