@@ -119,7 +119,7 @@ class M3_Mosaic():
         self.smoothDict = {}
         prog,tot = 1,len(nameList)
         for name,image in zip(nameList,imageList):
-            avgWvl,avgSpectrumImage,smoothSpectrumImage = csi.splineFit(image,5,self.analyzedWavelengths)
+            avgWvl,avgSpectrumImage,smoothSpectrumImage = csi.splineFit(image,3,self.analyzedWavelengths)
             self.smoothDict.update({name:smoothSpectrumImage})
             tf.imwrite(os.path.join(self.folderPath,'rfl_smooth',f'{name}_smooth.tif'),smoothSpectrumImage.astype('float32'),photometric='rgb')
             print(f'{prog} of {tot} ({prog/tot:.0%})')
@@ -198,16 +198,22 @@ class M3_Mosaic():
         except:
             defaultKwargs = {'inputImageDict':None}
 
+        ##Making save directory
+        try:
+            os.mkdir(os.path.join(self.folderPath,'spectral_angle_maps'))
+        except:
+            pass
+
         kwargs = {**defaultKwargs,**kwargs}
         nameList,imageList = kwargs.get('inputImageDictionary').keys(),kwargs.get('inputImageDictionary').values()
         
         ##Getting waterlocations in numpy coordinates
         try:
-            water_loc_path_list = [os.path.join(self.folderPath,'water_locations',i) for i in os.listdir(os.path.join(self.folderPath,'water_locations'))]
+            water_loc_path_list = [os.path.join(self.folderPath,'water_locations',f'{i}.csv') for i in kwargs.get('inputImageDictionary').keys()]
         except:
             raise FileNotFoundError('Run the locate_ice method first!')
         
-        specAngMapDict= {}
+        spec_ang_map_dict,thresh_map_dict = {},{}
         prog,tot=1,len(imageList)
         for name,image,water_loc_path in zip(nameList,imageList,water_loc_path_list):
             total_pixels = image.shape[0]*image.shape[1]
@@ -215,6 +221,7 @@ class M3_Mosaic():
             x,y = np.array(water_loc.iloc[:,4]).astype(int),np.array(water_loc.iloc[:,5]).astype(int)
             water_locations_array = np.zeros((image.shape[:2]))
             water_locations_array[x,y] = 1
+            
 
             wvl,USGS_Frost = get_USGS_H2OFrost(USGS_folder='D:/Data/USGS_Water_Ice')
             USGS_Frost = np.expand_dims(USGS_Frost,1)
@@ -224,17 +231,21 @@ class M3_Mosaic():
             M,I = image,USGS_Frost_Array
 
             specAngleMap = 180*np.arccos(np.einsum('ijk,ijk->ij',M,I)/(np.linalg.norm(M,axis=2)*np.linalg.norm(I,axis=2)))/np.pi
+            spec_ang_map_dict.update({name:specAngleMap})
             no_water_indices = np.where(water_locations_array==0)
             high_spec_angle_indices = np.where(specAngleMap>threshold)
 
             threshIceMap = copy(image)
             threshIceMap[no_water_indices]=-9999
             threshIceMap[high_spec_angle_indices] = -9999
+            thresh_map_dict.update({name:threshIceMap})
+
+            tf.imwrite(os.path.join(self.folderPath,'spectral_angle_maps',f'{name[:-7]}_SAM.tif'),specAngleMap)
 
             print (f'\r{prog} of {tot} ({prog/tot:.1%})',end='\r')
             prog+=1
 
-        return specAngleMap,threshIceMap
+        return spec_ang_map_dict,thresh_map_dict
     
 
 if __name__ == '__main__':
