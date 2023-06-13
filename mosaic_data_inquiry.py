@@ -113,66 +113,68 @@ def mosaic_data_inquiry():
     return imageStatsArray,mosaicArray,mosaicStatsArray,illuminatedMosaic,illuminatedMosaicStats
 
 def mosaic_data_inquiry_large_withi(imsave=False):
-    L1_folder = 'D:/Data/OP2C_Downloads/L1_sorted'
-    L2_folder = 'D:/Data/OP2C_Downloads/L2_sorted'
-    saveFolder = 'D:/Data/Ice_Pipeline_Out_5-16-23' #askdir()
+    print ('Select Output Folder')
+    saveFolder = askdir()
 
     try:
         os.mkdir(f'{saveFolder}/shaded_removed')
     except:
         pass
-    
-    rfl_fileList = os.listdir(f'{L2_folder}/sorted_tif_files/rfl_cropped')
-    loc_fileList = os.listdir(f'{L1_folder}/sorted_tif_files/loc_cropped')
-    obs_fileList = os.listdir(f'{L1_folder}/sorted_tif_files/obs_cropped')
 
-    mosaic_stats_array = np.zeros((len(rfl_fileList),59,2))
+    rfl_fileList = os.listdir(f'{saveFolder}/rfl_cropped')
+    obs_fileList = os.listdir(f'{saveFolder}/obs_cropped')
 
-    darkRemovedList,rflImgList,locImgList,obsImgList,pixList = [],[],[],[],[]
+    stats_array = np.zeros((0,59,2))
+
+    rflImgList,obsImgList,pixList = [],[],[]
+    bright_bool_list = []
     prog = 0
     tot = len(rfl_fileList)
-    for rfl,loc,obs in zip(rfl_fileList,loc_fileList,obs_fileList):
-        rfl_img = tf.imread(f'{L2_folder}/sorted_tif_files/rfl_cropped/{rfl}')
-        loc_img = tf.imread(f'{L1_folder}/sorted_tif_files/loc_cropped/{loc}')
-        obs_img = tf.imread(f'{L1_folder}/sorted_tif_files/obs_cropped/{obs}')
+    for rfl,obs in zip(rfl_fileList,obs_fileList):
+        rfl_img = tf.imread(os.path.join(saveFolder,'rfl_cropped',rfl))
+        obs_img = tf.imread(os.path.join(saveFolder,'obs_cropped',obs))
         deg_incidence = 180*np.arccos(obs_img[:,:,-1])/np.pi
         obs_img[:,:,-1] = deg_incidence
 
         rflImgList.append(rfl_img)
-        locImgList.append(loc_img)
         obsImgList.append(obs_img)
        
-        dark_pixels = np.where(deg_incidence>90)
-        pixList.append(dark_pixels)
+        bright_pixels = np.where(deg_incidence<90)
+        pixList.append(bright_pixels)
 
-        darkRemovedImage = copy.copy(rfl_img)
-        darkRemovedImage[dark_pixels]=-9999
-        darkRemovedList.append(darkRemovedImage)
+        bright_bool = -9999*np.ones((rfl_img.shape[:2]))
+        bright_bool[bright_pixels] = 1
+        bright_bool_list.append(bright_bool)
 
-        rfl_stats = np.zeros((59,2))
-        for band in range(rfl_img.shape[2]):
-             x = np.where(darkRemovedImage[:,:,band]>-9999)[0]
-             y = np.where(darkRemovedImage[:,:,band]>-9999)[1]
-             rfl_stats[band,0] = rfl_img[x,y,band].mean()
-             rfl_stats[band,1] = rfl_img[x,y,band].std()
+        bright_array = copy.copy(rfl_img)
+        bright_array = bright_array[bright_pixels[0],bright_pixels[1],:]
+        image_avg = np.mean(bright_array,axis=0)
+        image_std = np.std(bright_array,axis=0)
+        stats_array = np.concatenate([stats_array,np.expand_dims(np.array([image_avg,image_std]).T,0)],axis=0)
         
-        mosaic_stats_array[prog,:,:] = rfl_stats
-        
-        if imsave == True:
-            darkRemovedImage_save = copy.copy(darkRemovedImage)
-            darkRemovedImage_save = np.moveaxis(darkRemovedImage_save,2,0)
-            with rio.open(f'{saveFolder}/shaded_removed/{rfl[:-4]}_noDark.tif','w',\
-                            driver='GTiff',height=darkRemovedImage_save.shape[1],\
-                            width=darkRemovedImage_save.shape[2],\
-                            count=darkRemovedImage_save.shape[0],\
-                            dtype=darkRemovedImage_save.dtype,nodata=-9999) as f:
-                            f.write(darkRemovedImage_save)
-
         print (f'\r{prog+1} of {tot} ({prog/tot:.0%})',end='\r')
         prog+=1
+    
+    if imsave == True:
+        print ('Saving Images...')
+        try:
+            os.mkdir(os.path.join(saveFolder,'incidence_bright_bool_arrays'))
+        except:
+            pass
+        prog,tot=1,len(rfl_fileList)
+        for rfl,bool_array in zip(rfl_fileList,bright_bool_list):
+            bool_array_save = copy.copy(bool_array)
+            bool_array_save = bool_array_save[np.newaxis,:]
+            with rio.open(os.path.join(saveFolder,'incidence_bright_bool_arrays',f'{rfl[3:-16]}_inc_bright.tif'),'w',\
+                            driver='GTiff',height=bool_array_save.shape[1],\
+                            width=bool_array_save.shape[2],\
+                            count=1,\
+                            dtype='float32',nodata=-9999) as f:
+                            f.write(bool_array_save)
 
-    #np.save('D:/Data/Ice_Pipeline_Out_5-16-23/mosaic_stats_array.npy',mosaic_stats_array)
-    return darkRemovedList
+            print (f'\r{prog} of {tot} ({prog/tot:.0%})',end='\r')
+            prog+=1
+        
 
 def mosaic_data_inquiry_large_thresholdRFL(imsave=False):
     print ('Select Output Folder:')
@@ -190,8 +192,8 @@ def mosaic_data_inquiry_large_thresholdRFL(imsave=False):
 
     THRESH_RFL = 0.05
 
-    brightImageList = []
     stats_array = np.zeros((0,59,2))
+    brightImageList = []
     prog,tot = 1,len(rfl_fileList)
     for file in rfl_fileList:
         img_rfl = tf.imread(f'{saveFolder}/rfl_cropped/{file}')
@@ -205,17 +207,16 @@ def mosaic_data_inquiry_large_thresholdRFL(imsave=False):
         image_avg = np.mean(bright_array,axis=0)
         image_std = np.std(bright_array,axis=0)
         stats_array = np.concatenate([stats_array,np.expand_dims(np.array([image_avg,image_std]).T,0)],axis=0)
-
+        
         print (f'\r{prog} of {tot} complete ({prog/tot:.0%})',end='\r')
         prog+=1
-    
     
     np.save(f'{saveFolder}/mosaic_stats_array.npy',stats_array)
     
     if imsave==True:
         print('Saving shaded images...')
         try:
-            os.mkdir(f'{saveFolder}/shade_locations')
+            os.mkdir(f'{saveFolder}/bright_bool_arrays')
         except:
             pass
         
@@ -224,9 +225,9 @@ def mosaic_data_inquiry_large_thresholdRFL(imsave=False):
             brightImg_save = copy.copy(brightImg)
             brightImg_save = np.expand_dims(brightImg_save,2)
             brightImg_save = np.moveaxis(brightImg_save,2,0)
-            with rio.open(f'{saveFolder}/shade_locations/{file[:-4]}_shade.tif','w',\
+            with rio.open(os.path.join(saveFolder,'bright_bool_arrays',f'{file[3:-16]}_bright.tif'),'w',\
                             height=brightImg_save.shape[1],width=brightImg_save.shape[2],\
-                            count=brightImg_save.shape[0],dtype=brightImg_save.dtype,\
+                            count=brightImg_save.shape[0],dtype='float32',\
                             nodata=-9999) as f:
                             f.write(brightImg_save)
             print (f'\r{prog} of {tot} complete ({prog/tot:.0%})',end='\r')
@@ -239,7 +240,7 @@ def mosaic_data_inquiry_large_thresholdRFL(imsave=False):
 if __name__ == "__main__":
     start = time.time()
     print('Creating image and mosaic statistics...')
-    stats_array,brightImageList = mosaic_data_inquiry_large_thresholdRFL(imsave=True)
+    stats_array = mosaic_data_inquiry_large_withi(imsave=True)
     print ('Statistics calculated! Success!')
     end = time.time()
 

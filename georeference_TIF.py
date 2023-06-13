@@ -84,7 +84,7 @@ def georef(originalStampPath:str,locBackplanePath:str,saveFolder:str,crs_wkt:str
     ##Setting lat-long of random center points
     all_coords = [(i,j) for i,j in zip(backplaneStamp[:,:,0].flatten(),backplaneStamp[:,:,1].flatten())]
 
-    random_ind = np.random.choice(range(len(all_coords)),1000,replace=False)
+    random_ind = np.random.choice(range(len(all_coords)),500000,replace=False)
     Y,X = np.meshgrid(np.arange(backplaneStamp.shape[1]),np.arange(backplaneStamp.shape[0]))
     random_np_coords = np.array([(X.flatten()[i],Y.flatten()[i]) for i in list(random_ind)])
     random_coords_latlong = np.array([all_coords[i] for i in list(random_ind)])
@@ -123,6 +123,7 @@ if __name__ == "__main__":
     start = time.time()
     processing = input('Batch or Single Image?')
     if processing=='Single Image':
+        start = time.time()
         print ('Select image to be georeferenced:')
         originalImage = askfile()
         if originalImage == '':
@@ -165,7 +166,7 @@ if __name__ == "__main__":
                 write_line = '\t'.join(str_list)
                 f.write(f'{write_line}\n')
         f.close()
-        print ('Georeferencing complete!')
+        print (f'Georeferencing complete in {(time.time()-start)/60:.2} minutes!')
         plt.imshow(img[0,:,:])
         plt.show()
 

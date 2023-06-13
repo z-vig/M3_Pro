@@ -12,8 +12,10 @@ from spectrum_averaging import nd_avg
 import spectral as sp
 import math
 import time
+import tifffile as tf
+import os
 
-def splineFit(inputImage:np.ndarray,avg_num:int,wvl:np.ndarray):
+def splineFit(inputImage:np.ndarray,avg_num:int,wvl:np.ndarray,folderPath:str,name:str):
     averageBands = np.zeros((*inputImage.shape[:2],0))
     averageWvl = []
     for band_num in range(inputImage.shape[2]):
@@ -46,10 +48,10 @@ def splineFit(inputImage:np.ndarray,avg_num:int,wvl:np.ndarray):
         resample_x = np.linspace(0,len(wvl),inputImage.shape[2])
         return f(resample_x)
     
-    print ('Applying spline along axis 2...')
     smoothArray = np.apply_along_axis(spline_func,2,averageBands)
 
-    return averageWvl,averageBands,smoothArray
+    tf.imwrite(os.path.join(folderPath,'rfl_smooth',f'{name}_smooth.tif'),smoothArray.astype('float32'),photometric='rgb')
+    print (f'{name} has been smoothed.')
 
 if __name__ == "__main__":
     start = time.time()

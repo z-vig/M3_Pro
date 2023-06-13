@@ -19,6 +19,7 @@ import datetime
 import shutil
 from get_USGS_H2OFrost import get_USGS_H2OFrost
 import rasterio
+import threading
 
 def find_all(s, ch):
     return [i for i, ltr in enumerate(s) if ltr == ch]
@@ -106,7 +107,7 @@ class M3_Mosaic():
         return self.correctedImageDict
     
     def spectrum_smoothing(self,**kwargs)->dict:
-        defaultKwargs = {'inputImageDictionary':self.correctedImageDict}
+        defaultKwargs = {'inputImageDictionary':self.correctedImageDict,'shadowOnly':False}
         kwargs = {**defaultKwargs,**kwargs}
         startTime = time.time()
         nameList,imageList = kwargs.get('inputImageDictionary').keys(),kwargs.get('inputImageDictionary').values()
@@ -116,17 +117,18 @@ class M3_Mosaic():
         except:
             pass
 
-        self.smoothDict = {}
         prog,tot = 1,len(nameList)
+        threads = []
         for name,image in zip(nameList,imageList):
-            avgWvl,avgSpectrumImage,smoothSpectrumImage = csi.splineFit(image,3,self.analyzedWavelengths)
-            self.smoothDict.update({name:smoothSpectrumImage})
-            tf.imwrite(os.path.join(self.folderPath,'rfl_smooth',f'{name}_smooth.tif'),smoothSpectrumImage.astype('float32'),photometric='rgb')
-            print(f'{prog} of {tot} ({prog/tot:.0%})')
+            t = threading.Thread(target=csi.splineFit,args=(image,5,self.analyzedWavelengths,self.folderPath,name))
+            t.start()
+            threads.append(t)
+            print (f'{prog} threads started...')
             prog+=1
+        for thread in threads:
+            thread.join()
         
         print (f'>>>Spectrum Smoothing complete in {time.time()-startTime:.1f} seconds')
-        return self.smoothDict
     
     def locate_ice(self,**kwargs)->tuple[np.ndarray,np.ndarray,pd.DataFrame]:
         ##Loading all necessary data
@@ -223,7 +225,7 @@ class M3_Mosaic():
             water_locations_array[x,y] = 1
             
 
-            wvl,USGS_Frost = get_USGS_H2OFrost(USGS_folder='D:/Data/USGS_Water_Ice')
+            wvl,USGS_Frost = get_USGS_H2OFrost('D:/Data/USGS_Water_Ice',self.analyzedWavelengths)
             USGS_Frost = np.expand_dims(USGS_Frost,1)
             USGS_Frost_Array = np.repeat(USGS_Frost,total_pixels,1).T
             USGS_Frost_Array = USGS_Frost_Array.reshape((image.shape[0],image.shape[1],59))
@@ -240,7 +242,7 @@ class M3_Mosaic():
             threshIceMap[high_spec_angle_indices] = -9999
             thresh_map_dict.update({name:threshIceMap})
 
-            tf.imwrite(os.path.join(self.folderPath,'spectral_angle_maps',f'{name[:-7]}_SAM.tif'),specAngleMap)
+            tf.imwrite(os.path.join(self.folderPath,'spectral_angle_maps',f'{name}_SAM.tif'),specAngleMap)
 
             print (f'\r{prog} of {tot} ({prog/tot:.1%})',end='\r')
             prog+=1
@@ -287,8 +289,6 @@ if __name__ == '__main__':
         cordict = batchMosaic.shadow_correction()
         print ('Smoothing spectrum...')
         smoothdict = batchMosaic.spectrum_smoothing()
-        print ('locating ice...')
-        waterlocatedict = batchMosaic.locate_ice()
 
         print ('\nRemoval from memory...')
         del batch_rfl,batch_loc,batch_obs
