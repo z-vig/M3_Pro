@@ -181,11 +181,6 @@ def mosaic_data_inquiry_large_thresholdRFL(imsave=False):
     saveFolder = askdir()
     print (f'{saveFolder} selected')
 
-    try:
-        os.mkdir(f'{saveFolder}/shaded_removed')
-    except:
-        pass
-    
     rfl_fileList = os.listdir(f'{saveFolder}/rfl_cropped')
     loc_fileList = os.listdir(f'{saveFolder}/loc_cropped')
     obs_fileList = os.listdir(f'{saveFolder}/obs_cropped')
@@ -240,7 +235,7 @@ def mosaic_data_inquiry_large_thresholdRFL(imsave=False):
 if __name__ == "__main__":
     start = time.time()
     print('Creating image and mosaic statistics...')
-    stats_array = mosaic_data_inquiry_large_withi(imsave=True)
+    stats_array = mosaic_data_inquiry_large_thresholdRFL(imsave=True)
     print ('Statistics calculated! Success!')
     end = time.time()
 

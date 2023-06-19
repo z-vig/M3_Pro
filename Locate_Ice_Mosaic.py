@@ -17,6 +17,7 @@ import M3_UnZip
 from tkinter.filedialog import askdirectory as askdir
 import datetime
 import shutil
+import get_USGS_H2OFrost
 from get_USGS_H2OFrost import get_USGS_H2OFrost
 import rasterio
 import threading
@@ -84,7 +85,7 @@ class M3_Mosaic():
         return self.destripeDict
     
     def shadow_correction(self,**kwargs)->dict:
-        defaultKwargs = {'inputImageDictionary':self.destripeDict}
+        defaultKwargs = {'inputImageDictionary':{i:j for i,j in zip(self.stampNames,self.rflImages)},'shadowOnly':False}
         kwargs = {**defaultKwargs,**kwargs}
         startTime = time.time()
         nameList,imageList = kwargs.get('inputImageDictionary').keys(),kwargs.get('inputImageDictionary').values()
@@ -98,9 +99,12 @@ class M3_Mosaic():
         R_BIDIRECTIONAL = np.mean(self.statistics[:,:,0],axis=0)
         prog,tot = 1,len(nameList)
         for name,image in zip(nameList,imageList):
-            corrected_image = image/R_BIDIRECTIONAL
-            self.correctedImageDict.update({name:corrected_image})
-            tf.imwrite(os.path.join(self.folderPath,'rfl_correction',f'{name}_corrected.tif'),corrected_image)
+            bool_array = tf.imread(os.path.join(self.folderPath,'bright_bool_arrays',f'{name}_bright.tif'))
+            shaded_regions = image[np.where(bool_array==-9999)]
+            shaded_regions_corrected = shaded_regions/R_BIDIRECTIONAL
+            image[np.where(bool_array==-9999)] = shaded_regions_corrected
+            self.correctedImageDict.update({name:image})
+            tf.imwrite(os.path.join(self.folderPath,'rfl_correction',f'{name}_corrected.tif'),image)
             print(f'\r{prog} of {tot} ({prog/tot:.0%})',end='\r')
             prog+=1
         print (f'>>>Shadow correction complete in {time.time()-startTime:.1f} seconds')
@@ -118,15 +122,18 @@ class M3_Mosaic():
             pass
 
         prog,tot = 1,len(nameList)
-        threads = []
-        for name,image in zip(nameList,imageList):
-            t = threading.Thread(target=csi.splineFit,args=(image,5,self.analyzedWavelengths,self.folderPath,name))
-            t.start()
-            threads.append(t)
-            print (f'{prog} threads started...')
-            prog+=1
-        for thread in threads:
-            thread.join()
+        self.smoothDict = {}
+        if kwargs.get('shadowOnly')==False:
+            for name,image in zip(nameList,imageList):
+                avgWvl,avgSpectrumImage,smoothSpectrumImage = csi.splineFit(image,5,self.analyzedWavelengths)
+                self.smoothDict.update({name:smoothSpectrumImage})
+                tf.imwrite(os.path.join(self.folderPath,'rfl_smooth',f'{name}_smooth.tif'),smoothSpectrumImage.astype('float32'),photometric='rgb')
+                print(f'{prog} of {tot} ({prog/tot:.0%})')
+                prog+=1
+        elif kwargs.get('shadowOnly')==True:
+            for name,image in zip(nameList,imageList):
+                bool_array = tf.imread(os.path.join(self.folderPath),'bright_bool_arrays',f'{name}_bright.tif')
+                
         
         print (f'>>>Spectrum Smoothing complete in {time.time()-startTime:.1f} seconds')
     
@@ -184,7 +191,7 @@ class M3_Mosaic():
             df_data = np.concatenate([self.waterCoords_map,np.array([*self.waterCoords_numpy]).T],axis=1)
 
             waterDf = pd.DataFrame(df_data)
-            waterDf.columns = ['Latitude','Longitude','Elevation','x','y']
+            waterDf.columns = ['Longitude','Latitude','Elevation','x','y']
             self.waterLocateDict.update({name:allband_array})
 
             waterDf.to_csv(os.path.join(self.folderPath,'water_locations',f'{name}.csv'))
@@ -224,14 +231,12 @@ class M3_Mosaic():
             water_locations_array = np.zeros((image.shape[:2]))
             water_locations_array[x,y] = 1
             
-
             wvl,USGS_Frost = get_USGS_H2OFrost('D:/Data/USGS_Water_Ice',self.analyzedWavelengths)
             USGS_Frost = np.expand_dims(USGS_Frost,1)
             USGS_Frost_Array = np.repeat(USGS_Frost,total_pixels,1).T
             USGS_Frost_Array = USGS_Frost_Array.reshape((image.shape[0],image.shape[1],59))
 
             M,I = image,USGS_Frost_Array
-
             specAngleMap = 180*np.arccos(np.einsum('ijk,ijk->ij',M,I)/(np.linalg.norm(M,axis=2)*np.linalg.norm(I,axis=2)))/np.pi
             spec_ang_map_dict.update({name:specAngleMap})
             no_water_indices = np.where(water_locations_array==0)
@@ -242,12 +247,12 @@ class M3_Mosaic():
             threshIceMap[high_spec_angle_indices] = -9999
             thresh_map_dict.update({name:threshIceMap})
 
-            tf.imwrite(os.path.join(self.folderPath,'spectral_angle_maps',f'{name}_SAM.tif'),specAngleMap)
+            tf.imwrite(os.path.join(self.folderPath,'spectral_angle_maps',f'{name}_SAM.tif'),specAngleMap.astype('float32'))
 
             print (f'\r{prog} of {tot} ({prog/tot:.1%})',end='\r')
             prog+=1
 
-        return spec_ang_map_dict,thresh_map_dict
+        return spec_ang_map_dict,thresh_map_dict,USGS_Frost
     
 
 if __name__ == '__main__':
@@ -283,8 +288,6 @@ if __name__ == '__main__':
         batchMosaic = M3_Mosaic(batch_rfl,batch_loc,batch_obs,batch_names,folderPath)
         prog = prog+len(batchMosaic.stampNames)
         print (f'\n-----Beginning Mosaic analysis of {len(batchMosaic.stampNames)} ({prog} of {tot})images-----')
-        print ('Destriping Images...')
-        dedict = batchMosaic.destripe_images()
         print ('Running Li et al., 2018 Shadow Correction...')
         cordict = batchMosaic.shadow_correction()
         print ('Smoothing spectrum...')

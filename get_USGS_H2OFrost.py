@@ -14,7 +14,7 @@ def get_USGS_H2OFrost(USGS_folder:str,resample_wvl:list):
 
     goodIndices = np.where((wavelengths*1000>900)&(wavelengths*1000<2600))[0]
 
-    wvl,rfl = wavelengths.iloc[goodIndices,0],water.iloc[goodIndices,0]
+    wvl,rfl = wavelengths.iloc[goodIndices,0]*1000,water.iloc[goodIndices,0]
     #print (f'Water Length: {water.shape}, Wavelength Length: {wavelengths.shape}')
     f = interp.CubicSpline(wvl,rfl)
     xtest = resample_wvl

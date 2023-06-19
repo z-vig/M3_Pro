@@ -84,40 +84,45 @@ def georef(originalStampPath:str,locBackplanePath:str,saveFolder:str,crs_wkt:str
     ##Setting lat-long of random center points
     all_coords = [(i,j) for i,j in zip(backplaneStamp[:,:,0].flatten(),backplaneStamp[:,:,1].flatten())]
 
-    random_ind = np.random.choice(range(len(all_coords)),500000,replace=False)
-    Y,X = np.meshgrid(np.arange(backplaneStamp.shape[1]),np.arange(backplaneStamp.shape[0]))
-    random_np_coords = np.array([(X.flatten()[i],Y.flatten()[i]) for i in list(random_ind)])
-    random_coords_latlong = np.array([all_coords[i] for i in list(random_ind)])
-    random_coords_meters = stereo_project(random_coords_latlong[:,1],random_coords_latlong[:,0])
-    random_coords_meters = np.array((random_coords_meters[0],random_coords_meters[1])).T
+    GCPS_NUM = 50000
+    if backplaneStamp.shape[0]*backplaneStamp.shape[1] < GCPS_NUM:
+        print (f'Could not georeference a small image of size: {backplaneStamp.shape}')
+        return None,None
+    else:
+        random_ind = np.random.choice(range(len(all_coords)),GCPS_NUM,replace=False)
+        Y,X = np.meshgrid(np.arange(backplaneStamp.shape[1]),np.arange(backplaneStamp.shape[0]))
+        random_np_coords = np.array([(X.flatten()[i],Y.flatten()[i]) for i in list(random_ind)])
+        random_coords_latlong = np.array([all_coords[i] for i in list(random_ind)])
+        random_coords_meters = stereo_project(random_coords_latlong[:,1],random_coords_latlong[:,0])
+        random_coords_meters = np.array((random_coords_meters[0],random_coords_meters[1])).T
 
-    gcps_random = [GCP(*random_np_coords[i,:],*random_coords_meters[i,:]) for i in range(len(random_ind))]
+        gcps_random = [GCP(*random_np_coords[i,:],*random_coords_meters[i,:]) for i in range(len(random_ind))]
 
-    gcps = gcps_corners+gcps_random+gcps_border
+        gcps = gcps_corners+gcps_random+gcps_border
 
-    transform = from_gcps(gcps)
-    
-    #name_index = find_all(originalStampPath,'/')[-1]
-    stampName = os.path.basename(originalStampPath)
-    with rio.open(f'{saveFolder}/{stampName[:-4]}_georef.tif','w',
-            driver='GTiff',
-            height=originalStamp.shape[1],
-            width = originalStamp.shape[2],
-            count=originalStamp.shape[0],
-            dtype=originalStamp.dtype,
-            crs=crs_wkt,
-            transform=transform,
-            interleave = 'pixel',
-            nodata = no_data_value
-                ) as img:
-        img.write(originalStamp)
+        transform = from_gcps(gcps)
+        
+        #name_index = find_all(originalStampPath,'/')[-1]
+        stampName = os.path.basename(originalStampPath)
+        with rio.open(f'{saveFolder}/{stampName[:-4]}_georef.tif','w',
+                driver='GTiff',
+                height=originalStamp.shape[1],
+                width = originalStamp.shape[2],
+                count=originalStamp.shape[0],
+                dtype=originalStamp.dtype,
+                crs=crs_wkt,
+                transform=transform,
+                interleave = 'pixel',
+                nodata = no_data_value
+                    ) as img:
+            img.write(originalStamp)
 
-    allgcps_array = np.concatenate([borderCoords_meters,random_coords_meters],axis=0)
-    allgcps_np = np.concatenate([borderCoords_np,random_np_coords],axis=0)
-    #print (allgcps_np.shape)
-    allgcps_array = np.concatenate([allgcps_np,allgcps_array],axis=1)
+        allgcps_array = np.concatenate([borderCoords_meters,random_coords_meters],axis=0)
+        allgcps_np = np.concatenate([borderCoords_np,random_np_coords],axis=0)
+        #print (allgcps_np.shape)
+        allgcps_array = np.concatenate([allgcps_np,allgcps_array],axis=1)
 
-    return originalStamp,allgcps_array
+        return originalStamp,allgcps_array
 
 if __name__ == "__main__":
     start = time.time()
@@ -216,5 +221,4 @@ if __name__ == "__main__":
     
     else:
         raise SyntaxError('Please select a valid processing option.')
-
 # %%
