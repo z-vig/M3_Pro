@@ -170,13 +170,15 @@ class M3_Mosaic():
             
             def get_bandArray(band_indices:np.ndarray,bandName:str)->np.ndarray:
                 band_arr = np.zeros((image.shape[0:2]))
+                band_min_loc_arr = np.zeros((image.shape[0:2]))
                 for i in range(band_indices.min()-1,band_indices.max()):
                     band_arr[np.where((diff_array[:,:,i]!=diff_array[:,:,i+1])&(diff_array[:,:,i]==True))] = 1
-                return band_arr
+                    band_min_loc_arr[np.where((diff_array[:,:,i]!=diff_array[:,:,i+1])&(diff_array[:,:,i]==True))] = i+1
+                return band_arr,band_min_loc_arr
 
-            band1_array = get_bandArray(band1_indices,'Band 1')
-            band2_array = get_bandArray(band2_indices,'Band 2')
-            band3_array = get_bandArray(band3_indices,'Band 3')
+            band1_array,band1_minloc = get_bandArray(band1_indices,'Band 1')
+            band2_array,band2_minloc = get_bandArray(band2_indices,'Band 2')
+            band3_array,band3_minloc = get_bandArray(band3_indices,'Band 3')
             allband_array = np.zeros(image.shape)
             for i in range(1,image.shape[2]-1):
                 x,y  = (np.where((diff_array[:,:,i]!=diff_array[:,:,i+1])&(diff_array[:,:,i]==True)))
@@ -184,14 +186,17 @@ class M3_Mosaic():
 
             self.waterLocations = np.zeros(band1_array.shape)
             self.waterCoords_numpy = np.where((band1_array==1)&(band2_array==1)&(band3_array==1)&(np.average(image,axis=2)>0))
+            band1_minima = band1_minloc[self.waterCoords_numpy]
+            band2_minima = band2_minloc[self.waterCoords_numpy]
+            band3_minima = band3_minloc[self.waterCoords_numpy]
             self.waterLocations[self.waterCoords_numpy] = 1
-
-            self.waterCoords_map = mapCoords[self.waterCoords_numpy[0],self.waterCoords_numpy[1],:]
             
-            df_data = np.concatenate([self.waterCoords_map,np.array([*self.waterCoords_numpy]).T],axis=1)
-
+            self.waterCoords_map = mapCoords[self.waterCoords_numpy[0],self.waterCoords_numpy[1],:]
+            all_band_minima = np.vstack([band1_minima,band2_minima,band3_minima]).T
+            
+            df_data = np.concatenate([self.waterCoords_map,np.array([*self.waterCoords_numpy]).T,all_band_minima],axis=1)
             waterDf = pd.DataFrame(df_data)
-            waterDf.columns = ['Longitude','Latitude','Elevation','x','y']
+            waterDf.columns = ['Longitude','Latitude','Elevation','x','y','band1_index','band2_index','band3_index']
             self.waterLocateDict.update({name:allband_array})
 
             waterDf.to_csv(os.path.join(self.folderPath,'water_locations',f'{name}.csv'))
@@ -253,6 +258,106 @@ class M3_Mosaic():
             prog+=1
 
         return spec_ang_map_dict,thresh_map_dict,USGS_Frost
+
+    def calculate_band_depth(self,**kwargs):
+        try:
+            defaultKwargs = {'inputImageDictionary':self.smoothDict}
+        except:
+            defaultKwargs = {'inputImageDictionary':None}
+
+        kwargs = {**defaultKwargs,**kwargs}
+
+        ##Making save directory
+        try:
+            os.mkdir(os.path.join(self.folderPath,'band_depth_maps'))
+        except:
+            pass
+
+        try:
+            os.mkdir(os.path.join(self.folderPath,'min_position_maps'))
+        except:
+            pass
+        
+        ##Finding saved water locations
+        try:
+            water_loc_path_list = [os.path.join(self.folderPath,'water_locations',f'{i}.csv') for i in kwargs.get('inputImageDictionary').keys()]
+        except:
+            raise FileNotFoundError('Run the locate_ice method first!')
+
+        ##Finding exact indices that correlate to given shoulder values
+        allowedWvl = self.analyzedWavelengths
+        nameList,imageList = kwargs.get('inputImageDictionary').keys(),kwargs.get('inputImageDictionary').values()
+        shoulderValues = np.array(([1130,1350],[1420,1740],[1820,2200]))
+        shoulderValues_exact = np.zeros((3,2))
+        n=0
+        for Rs,Rl in zip(shoulderValues[:,0],shoulderValues[:,1]):
+            Rs_wvl_list = [abs(Rs-index) for index in allowedWvl]
+            Rl_wvl_list = [abs(Rl-index) for index in allowedWvl]
+            shoulderValues_exact[n,:]=allowedWvl[np.where((Rs_wvl_list==min(Rs_wvl_list))|(Rl_wvl_list==min(Rl_wvl_list)))]
+            n+=1
+
+        for name,image,water_loc_path in zip(nameList,imageList,water_loc_path_list):
+            waterDf = pd.read_csv(water_loc_path)
+            band1,band2,band3 = waterDf.iloc[:,6],waterDf.iloc[:,7],waterDf.iloc[:,8]
+            waterX,waterY = (np.array(waterDf)[:,4:6].astype(int).T)
+            water_loc_mask = np.zeros((image.shape[:2]),dtype=bool)
+            water_loc_mask[waterX,waterY] = 1
+
+            Rc_band_loc = np.zeros((band1.shape[0],3)).astype(int)
+            for row in range(Rc_band_loc.shape[0]):
+                Rc_band_loc[row,:] = np.array((band1[row],band2[row],band3[row])).astype(int)
+
+            Rc,Rs,Rl = np.full((*image.shape[:2],3),np.nan),np.full((*image.shape[:2],3),np.nan),np.full((*image.shape[:2],3),np.nan)
+            lamb_c,lamb_s,lamb_l = np.full((*image.shape[:2],3),np.nan),np.full((*image.shape[:2],3),np.nan),np.full((*image.shape[:2],3),np.nan)
+            
+            for num,col in enumerate(Rc_band_loc.T):
+                Rc[waterX,waterY,num] = image[waterX,waterY,col]
+
+            Rs_wvlIndices = np.where((allowedWvl==shoulderValues_exact[0,0])|(allowedWvl==shoulderValues_exact[1,0])|(allowedWvl==shoulderValues_exact[2,0]))[0]
+            Rl_wvlIndices = np.where((allowedWvl==shoulderValues_exact[0,1])|(allowedWvl==shoulderValues_exact[1,1])|(allowedWvl==shoulderValues_exact[2,1]))[0]
+
+            for i in range(3):
+                Rs[waterX,waterY,i] = image[waterX,waterY,Rs_wvlIndices[i]]
+                Rl[waterX,waterY,i] = image[waterX,waterY,Rl_wvlIndices[i]]
+
+                lamb_c[waterX,waterY,i] = np.array(self.analyzedWavelengths[Rc_band_loc.flatten()]).reshape(Rc_band_loc.shape)[:,i]
+                lamb_s[waterX,waterY,i] = np.repeat(np.array(self.analyzedWavelengths[Rs_wvlIndices[i]]),len(waterX))
+                lamb_l[waterX,waterY,i] = np.repeat(np.array(self.analyzedWavelengths[Rl_wvlIndices[i]]),len(waterX))
+
+            #print (f'wvlIndices:{wvlIndices.shape},Rc:{Rc_wvlIndices.shape}')
+            b = (lamb_c-lamb_s)/(lamb_l-lamb_s)
+            a = 1-b
+            
+            Rc_star = a*Rs+b*Rl
+            
+            test_ar = b[np.where(np.isnan(b)==0)]
+            test_ar2 = a[np.where(np.isnan(b)==0)]
+            test_ar3 = Rc[np.where(np.isnan(b)==0)]
+            test_ar4 = Rs[np.where(np.isnan(b)==0)]
+            test_ar5 = Rl[np.where(np.isnan(b)==0)]
+            # print (Rc_band_loc[0])
+            # print (waterX[0],waterY[0], image[15,147,Rc_band_loc[0]])#,image[15,147,:lamb_s[0]],image[15,147,:lamb_l[0]])
+            # print (f'b: {test_ar.reshape(int(test_ar.shape[0]/3),3)[0,:]}')
+            # print (f'a: {test_ar2.reshape(int(test_ar2.shape[0]/3),3)[0,:]}')
+            # print (f'Rc: {test_ar3.reshape(int(test_ar.shape[0]/3),3)[0,:]}')
+            # print (f'Rs: {test_ar4.reshape(int(test_ar.shape[0]/3),3)[0,:]}')
+            # print (f'Rl: {test_ar5.reshape(int(test_ar.shape[0]/3),3)[0,:]}')
+
+            band_depth_map = 1-(Rc/Rc_star)
+            min_position_map = np.full_like(band_depth_map,np.nan)
+            # print (min_position_map.shape)
+            # print ((np.where(np.isnan(band_depth_map[:,:,0])==0)))
+            # print (min_position_map[(np.where(np.isnan(band_depth_map[:,:,0])==0))].shape)
+            for i in range(3):
+                min_position_map[(np.where(np.isnan(band_depth_map[:,:,0])==0))]=Rc_band_loc
+
+           #=Rc_band_loc[:,0]
+
+
+            # tf.imwrite(os.path.join(self.folderPath,'band_depth_maps',f'{name}_BD_map.tif'),band_depth_map)
+            # tf.imwrite(os.path.join(self.folderPath,'min_position_maps',f'{name}_min_positions.tif'),min_position_map)
+
+        return band_depth_map,min_position_map
     
 
 if __name__ == '__main__':
@@ -295,6 +400,3 @@ if __name__ == '__main__':
 
         print ('\nRemoval from memory...')
         del batch_rfl,batch_loc,batch_obs
-        
-
-        
