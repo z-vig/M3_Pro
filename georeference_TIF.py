@@ -84,7 +84,7 @@ def georef(originalStampPath:str,locBackplanePath:str,saveFolder:str,crs_wkt:str
     ##Setting lat-long of random center points
     all_coords = [(i,j) for i,j in zip(backplaneStamp[:,:,0].flatten(),backplaneStamp[:,:,1].flatten())]
 
-    GCPS_NUM = 50000
+    GCPS_NUM = 8000
     if backplaneStamp.shape[0]*backplaneStamp.shape[1] < GCPS_NUM:
         print (f'Could not georeference a small image of size: {backplaneStamp.shape}')
         return None,None
@@ -211,7 +211,7 @@ if __name__ == "__main__":
             locPath = os.path.join(loc_img_path,bp)
             index = find_all(os.path.basename(ogPath),'_')[0]
             #print (os.path.basename(ogPath)[:index],os.path.basename(locPath)[3:index+3])
-            if os.path.basename(ogPath)[:index]!=os.path.basename(locPath)[3:index+3]:
+            if os.path.basename(ogPath)[:index]!=os.path.basename(locPath)[:index]:
                 print (f'{os.path.basename(ogPath)}!={os.path.basename(locPath)}')
                 raise ValueError('Backplane does not match image!')
             print (f'\rProcessing {n} of {tot} ({n/tot:.0%})',end='\r')

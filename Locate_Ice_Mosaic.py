@@ -204,7 +204,7 @@ class M3_Mosaic():
             prog+=1
         
         print(f'>>>Ice located in {time.time()-startTime:.1f} seconds')
-        return self.waterLocateDict
+        return self.waterLocateDictsss
 
     def spectral_angle_mapping(self,threshold:float,**kwargs)->tuple[np.ndarray,np.ndarray]:
         try:

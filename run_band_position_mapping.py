@@ -1,0 +1,56 @@
+'''
+Script for utilizing the M3 Image Class to map water ice absorption minima
+'''
+
+##Importing Modules
+#%%
+import M3_Image_Class
+from importlib import reload
+reload(M3_Image_Class)
+from M3_Image_Class import M3_Stamp
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import tifffile as tf
+import rasterio as rio
+import os
+from os import path as path
+import time
+from tkinter.filedialog import askdirectory as askdir
+
+def band_position_mapping(save_step:bool)->None:
+    print ('Select Analysis Folder:')
+    folder_path = 'D:/Data/Ice_Pipeline_Out_8-7-23'
+    #folder_path = askdir()
+    print (f'{folder_path} selected for analysis')
+    input_path = 'D:/Data/Ice_Pipeline_Out_8-7-23/rfl_smooth_complete'
+    #input_path = askdir()
+    print ('Select input folder for reflected light correction step:')
+    print (f'The {os.path.basename(input_path)} folder has been selected as the processing input') #os.path.join(folder_path,'rfl_cropped')
+    all_input_paths = [os.path.join(input_path,i) for i in os.listdir(input_path)]
+    all_loc_paths = [os.path.join(folder_path,'loc_cropped',i) for i in os.listdir(os.path.join(folder_path,'loc_cropped'))]
+    all_obs_paths = [os.path.join(folder_path,'obs_cropped',i) for i in os.listdir(os.path.join(folder_path,'obs_cropped'))]
+
+    with open(os.path.join(folder_path,'stampNames.txt')) as f:
+        stamp_names = f.readlines()
+    stamp_names = [i[:-2] for i in stamp_names]
+
+    prog,tot = 0,len(stamp_names)
+    start_time = time.time()
+    df_list = []
+    for input_path,loc_path,obs_path,stamp_name in zip(all_input_paths,all_loc_paths,all_obs_paths,stamp_names):
+        input_im,loc_im,obs_im = tf.imread(input_path),tf.imread(loc_path),tf.imread(obs_path)
+        stamp_object = M3_Stamp(input_im,loc_im,obs_im,stamp_name,folder_path)
+        ice_bool,band_loc_df = stamp_object.ice_band_pos_map(save_step=save_step)
+        df_list.append(band_loc_df)
+        prog+=1
+        print (f'\rAnalysis for {stamp_name} complete ({prog/tot:.2%})',end='\r')
+        del input_im,loc_im,obs_im
+    
+    all_stamps_df = pd.concat(df_list,ignore_index=True)
+    all_stamps_df.to_csv(os.path.join(folder_path,'ice_band_location_summary.csv'))
+
+if __name__ == "__main__":
+    ##Running shadow correction step
+    band_position_mapping(True)
+    

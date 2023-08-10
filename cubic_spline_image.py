@@ -15,7 +15,7 @@ import time
 import tifffile as tf
 import os
 
-def splineFit(inputImage:np.ndarray,avg_num:int,wvl:np.ndarray):
+def spline_fit(inputImage:np.ndarray,avg_num:int,wvl:np.ndarray):
     averageBands = np.zeros((*inputImage.shape[:2],0))
     averageWvl = []
     for band_num in range(inputImage.shape[2]):

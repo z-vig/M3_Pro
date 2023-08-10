@@ -7,6 +7,9 @@ import pandas as pd
 from tkinter.filedialog import askdirectory as askdir
 
 def get_USGS_H2OFrost(USGS_folder:str,resample_wvl:list):
+    '''
+    Function for obtaining the USGS Water Frost Spectrum used in Li et al., 2018
+    '''
     water = pd.read_csv(f'{USGS_folder}/splib07a_H2O-Ice_GDS136_77K_BECKa_AREF.txt')
     wavelengths = pd.read_csv(f'{USGS_folder}/splib07a_Wavelengths_BECK_Beckman_0.2-3.0_microns.txt')
     water.columns = ['']

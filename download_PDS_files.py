@@ -73,4 +73,3 @@ if __name__ == "__main__":
         print(f'Program Executed in {runtime:.3f} seconds')
     else:
         print(f'Program Executed in {runtime/60:.0f} minutes and {runtime%60:.3f} seconds')
-    
