@@ -200,6 +200,40 @@ class M3_Stamp():
 
         return spec_ang_threshold_df,spec_ang_bool
     
+    def spectral_euclidian_distance_mapping(self,reference_spectrum:np.ndarray,threshold:float,**kwargs)->np.ndarray:
+        #Defining keyword arguments
+        defaultKwargs = {'save_step':False}
+        kwargs = {**defaultKwargs,**kwargs}
+        #Beginning location of each pixel with water-like absorption bands ({1.242-1.323},{1.503-1.1659},{1.945-2.056})
+        start_time = time.time()
+        total_pixels = self.input_im.shape[0]*self.input_im.shape[1]
+        
+        reference_spectrum = np.expand_dims(reference_spectrum,1)
+        ref_spec_array = np.repeat(reference_spectrum,total_pixels,1).T
+        ref_spec_array = ref_spec_array.reshape((self.input_im.shape[0],self.input_im.shape[1],59))
+
+        M,I = self.input_im,ref_spec_array
+        self.euc_dist_map = np.linalg.norm(M-I,axis=2)
+        euc_dist_bool = (self.euc_dist_map<threshold).astype(bool)
+        euc_dist_threshold_df = get_summary_dataframe(euc_dist_bool,self.loc_im,['Euclidian Distance'],self.euc_dist_map)
+
+        if kwargs.get('save_step')==True:
+            try:
+                os.mkdir(os.path.join(self.folder_path,f'euclidian_distance_bool_{threshold}'))
+            except:
+                pass
+            try:
+                os.mkdir(os.path.join(self.folder_path,f'euclidian_distance_values_{threshold}'))
+            except:
+                pass
+
+            #band_loc_df.to_csv(os.path.join(self.folder_path,'ice_band_location_summary.csv'))
+            tf.imwrite(os.path.join(self.folder_path,f'euclidian_distance_values_{threshold}',f'{self.stamp_name}.tif'),self.euc_dist_map.astype('float32'))
+            tf.imwrite(os.path.join(self.folder_path,f'euclidian_distance_bool_{threshold}',f'{self.stamp_name}.tif'),euc_dist_bool.astype('float32'))
+
+        return euc_dist_threshold_df,euc_dist_bool
+
+    
     def band_depth_mapping(self,ice_bool_array:np.ndarray,ice_band_df:np.ndarray,threshold:float,**kwargs):
         #Defining keyword arguments
         defaultKwargs = {'save_step':False}
@@ -251,7 +285,7 @@ class M3_Stamp():
         band_depth_bool = np.zeros(band_depth_map.shape[:2]).astype(bool)
 
         bd_values = band_depth_map[np.where(np.isnan(band_depth_map)==False)].reshape(-1,3)
-        above_thresh_index = np.where((bd_values[:,0]>0.1)&(bd_values[:,1]>0.1)&(bd_values[:,2]>0.1))[0]
+        above_thresh_index = np.where((bd_values[:,0]>0.1)&(bd_values[:,1]>0.1)&(bd_values[:,2]>threshold))[0]
         pos_det_loc = np.array(np.where(np.isnan(band_depth_map[:,:,0])==False))[:,above_thresh_index]
         band_depth_bool[(pos_det_loc[0,:],pos_det_loc[1,:])] = True
 
@@ -261,16 +295,16 @@ class M3_Stamp():
         
         if kwargs.get('save_step')==True:
             try:
-                os.mkdir(os.path.join(self.folder_path,f'band_depth_bool_{threshold:.1f}'))
+                os.mkdir(os.path.join(self.folder_path,f'band_depth_bool_{threshold:.2f}'))
             except:
                 pass
 
             try:
-                os.mkdir(os.path.join(self.folder_path,f'band_depth_values_{threshold:.1f}'))
+                os.mkdir(os.path.join(self.folder_path,f'band_depth_values_{threshold:.2f}'))
             except:
                 pass
             
-            tf.imwrite(os.path.join(self.folder_path,f'band_depth_values_{threshold:.1f}',f'{self.stamp_name}.tif'),band_depth_map.astype('float32'))
-            #tf.imwrite(os.path.join(self.folder_path,f'band_depth_bool_{threshold:.1f}',f'{self.stamp_name}.tif'),band_depth_bool.astype('float32'))
+            tf.imwrite(os.path.join(self.folder_path,f'band_depth_values_{threshold:.2f}',f'{self.stamp_name}.tif'),band_depth_map.astype('float32'))
+            tf.imwrite(os.path.join(self.folder_path,f'band_depth_bool_{threshold:.2f}',f'{self.stamp_name}.tif'),band_depth_bool.astype('float32'))
 
         return band_depth_bool,band_depth_thresh_df
