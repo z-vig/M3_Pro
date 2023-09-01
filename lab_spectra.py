@@ -132,18 +132,19 @@ def get_spectrum(spectral_data_folder:str,data_acquisition_file:str,**kwargs)->n
         if i.notes == kwargs.get('Notes'):
             notes_match.add(i)
     
-    print (len(description_match),len(ice_pct_match),len(test_day_match),len(notes_match))
+    #print (len(description_match),len(ice_pct_match),len(test_day_match),len(notes_match))
     for i in ice_pct_match:
         print (i.description,i.ice2regolith,i.test_day)
 
     intersection_list = [i for i in [ice_pct_match,test_day_match,notes_match] if len(i)>0]
     search_results = description_match.intersection(*intersection_list)
     spectrum_list = [i.rfl_values for i in list(search_results)]
+    wvl_list = [i.wvl_values for i in list(search_results)]
 
     for i in search_results:
         i.add_to_plot(ax)
 
-    return spectrum_list
+    return spectrum_list,wvl_list
 
 if __name__ == "__main__":
     spectral_analysis_folder = 'C:/Users/zvig/OneDrive - University of Iowa/Desktop/Python Code/spectral_analysis'

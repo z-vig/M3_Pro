@@ -206,7 +206,7 @@ class M3_Stamp():
             except:
                 pass
             try:
-                os.mkdir(os.path.join(self.folder_path,f'spectral_angle_values_{threshold}'))
+                os.mkdir(os.path.join(self.folder_path,f'spectral_angle_values'))
             except:
                 pass
 
@@ -239,7 +239,7 @@ class M3_Stamp():
             except:
                 pass
             try:
-                os.mkdir(os.path.join(self.folder_path,f'euclidian_distance_values_{threshold}'))
+                os.mkdir(os.path.join(self.folder_path,f'euclidian_distance_values'))
             except:
                 pass
 
@@ -316,7 +316,7 @@ class M3_Stamp():
                 pass
 
             try:
-                os.mkdir(os.path.join(self.folder_path,f'band_depth_values_{threshold:.2f}'))
+                os.mkdir(os.path.join(self.folder_path,f'band_depth_values'))
             except:
                 pass
             
