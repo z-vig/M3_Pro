@@ -14,41 +14,57 @@ import destripe_image
 import cubic_spline_image as csi
 
 #Defining helper functions
-def get_summary_dataframe(boolean_array:np.ndarray,map_coord_array:np.ndarray,value_name_list:list,*args)->pd.DataFrame:
-    true_coords = np.where(boolean_array==True)
+def get_summary_dataframe(boolean_array:np.ndarray,map_coord_array:np.ndarray,value_name_list:list,*args)->pd.DataFrame: #Function to format a summary dataframe of analyses
+    true_coords = np.where(boolean_array==True) #Gets positive values from boolean_array
     value_array = np.array([i[true_coords] for i in args]).T #N by len(args) array of values at each True boolean pixel
-    map_coords = map_coord_array[true_coords[0],true_coords[1],:]
+    map_coords = map_coord_array[true_coords[0],true_coords[1],:] #Gets map coordinates from map_coord_array for each positive value
 
-    summary_array = np.concatenate([map_coords,np.array([true_coords[0],true_coords[1]]).T,value_array],axis=1)
+    summary_array = np.concatenate([map_coords,np.array([true_coords[0],true_coords[1]]).T,value_array],axis=1) #Defines summary array by concatenteing map coordinates,
+                                                                                                                #numpy coordinates and pixel values
     summary_df = pd.DataFrame(summary_array)
-    summary_df.columns = ['Longitude','Latitude','Elevation','x','y',*value_name_list]
+    summary_df.columns = ['Longitude','Latitude','Elevation','x','y',*value_name_list] #Puts everything into pandas dataframe
 
     return summary_df
 
 class M3_Stamp():
+    '''
+    Class containing the properties of and methods to be performed on individual M3 stamps. The methods of this class define the M3 image processing pipeline as follows:
+
+    1. destripe_image // attempts to remove strping affects commonly found in M3 stamps.
+    2. shadow_correction // Uses the method from Li et al., 2018 to remove re-reflectance affects from shadowed M3 pixels.
+    3. spectrum_smoothing // Smoothes each pixel of an M3 stamp down the spectral dimension.
+    4. ice_band_pos_map // Creates a boolean map of pixel with absorption bands in the range of ice and a .csv summary file with columns: [Long,Lat,Elev,x,y,band1,band2,band3]
+    5. spectral_angle_map // Given a reference spectrum, creates a boolean map based off of a threshold spectral angle and a map of all spectral angle values.
+    6. euclidian_distance_map // Given a reference spectrum, creates a boolean map based off a threshold distance and a map of all euclidian distance values.
+    7. band_depth_map // Creates a boolean map based on a threshold applied to every water ice band and a 3-dimensional image with each of the 3 water ice band values
+
+    **Note that the input_im variable will allow users to begin analyses at whatever stage is necessary for their script. For example, if a script is written to destripe every 
+    image using the M3_stamp.destripe_image method, the user can now take the output images from that script and use them as inputs into a script that, say, performs the 
+    M3_stamp.shadow_correction method on each image.
+    '''
     def __init__(self,input_im:np.ndarray,loc_im:np.ndarray,obs_im:np.ndarray,stamp_name:str,folder_path:str) -> None:
-        self.input_im = input_im
-        self.loc_im = loc_im
-        self.obs_im = obs_im
-        self.stamp_name = stamp_name
-        self.folder_path = folder_path
+        self.input_im = input_im #Numpy array containing the input M3 stamp.
+        self.loc_im = loc_im #Numpy array containing the geospatial information for each M3 stamp (3 dimensions: lat,long,elev.)
+        self.obs_im = obs_im #Numpy array containing the observation orientation information for each M3 stamp
+        self.stamp_name = stamp_name #The name of the specific M3 stamp as a string
+        self.folder_path = folder_path #The path to the output folder as a string
     
     @property
-    def analyzed_wavelengths(self)->np.ndarray:
-        df = pd.read_csv(os.path.join(self.folder_path,'bandInfo.csv'))
+    def analyzed_wavelengths(self)->np.ndarray: #Property that gets the analyzed wavelengths for the M3 stamp (all stamps are the same)
+        df = pd.read_csv(os.path.join(self.folder_path,'bandInfo.csv')) #Accesses the bandInfo.csv file that is made during the mosaic_data_inquiry.py script
         bandArr = df.to_numpy()
-        return bandArr[:,2]
+        return bandArr[:,2] #Returns numpy array of analyzed wavelengths
     
     @property
-    def statistics(self)->np.ndarray:
+    def statistics(self)->np.ndarray: #Property that gets the statistics for each M3 stamp from a numpy save file
         try:
             stats_arr = np.load(f'{self.folder_path}/mosaic_stats_array.npy')
         except:
             raise FileNotFoundError('Run the mosaic data inquiry script first!')
-        return stats_arr
+        return stats_arr #Returns an array with the average spectrum of each M3 stamp and the standard deviation of each M3 stamp
     
     
-    def destripe_images(self,**kwargs)->np.ndarray:
+    def destripe_image(self,**kwargs)->np.ndarray:
         defaultKwargs = {'save_step':False}
         kwargs = {**defaultKwargs,**kwargs}
         startTime = time.time()
@@ -167,7 +183,7 @@ class M3_Stamp():
         
         return ice_bool,band_loc_df
 
-    def spectral_angle_mapping(self,reference_spectrum:np.ndarray,threshold:float,**kwargs)->np.ndarray:
+    def spectral_angle_map(self,reference_spectrum:np.ndarray,threshold:float,**kwargs)->np.ndarray:
         #Defining keyword arguments
         defaultKwargs = {'save_step':False}
         kwargs = {**defaultKwargs,**kwargs}
@@ -195,12 +211,12 @@ class M3_Stamp():
                 pass
 
             #band_loc_df.to_csv(os.path.join(self.folder_path,'ice_band_location_summary.csv'))
-            tf.imwrite(os.path.join(self.folder_path,f'spectral_angle_values_{threshold}',f'{self.stamp_name}.tif'),self.spec_ang_map.astype('float32'))
-            #tf.imwrite(os.path.join(self.folder_path,f'spectral_angle_bool_{threshold}',f'{self.stamp_name}.tif'),spec_ang_bool.astype('float32'))
+            tf.imwrite(os.path.join(self.folder_path,f'spectral_angle_values',f'{self.stamp_name}.tif'),self.spec_ang_map.astype('float32'))
+            tf.imwrite(os.path.join(self.folder_path,f'spectral_angle_bool_{threshold}',f'{self.stamp_name}.tif'),spec_ang_bool.astype('float32'))
 
         return spec_ang_threshold_df,spec_ang_bool
     
-    def spectral_euclidian_distance_mapping(self,reference_spectrum:np.ndarray,threshold:float,**kwargs)->np.ndarray:
+    def euclidian_distance_map(self,reference_spectrum:np.ndarray,threshold:float,**kwargs)->np.ndarray:
         #Defining keyword arguments
         defaultKwargs = {'save_step':False}
         kwargs = {**defaultKwargs,**kwargs}
@@ -228,13 +244,13 @@ class M3_Stamp():
                 pass
 
             #band_loc_df.to_csv(os.path.join(self.folder_path,'ice_band_location_summary.csv'))
-            tf.imwrite(os.path.join(self.folder_path,f'euclidian_distance_values_{threshold}',f'{self.stamp_name}.tif'),self.euc_dist_map.astype('float32'))
+            tf.imwrite(os.path.join(self.folder_path,f'euclidian_distance_values',f'{self.stamp_name}.tif'),self.euc_dist_map.astype('float32'))
             tf.imwrite(os.path.join(self.folder_path,f'euclidian_distance_bool_{threshold}',f'{self.stamp_name}.tif'),euc_dist_bool.astype('float32'))
 
         return euc_dist_threshold_df,euc_dist_bool
 
     
-    def band_depth_mapping(self,ice_bool_array:np.ndarray,ice_band_df:np.ndarray,threshold:float,**kwargs):
+    def band_depth_map(self,ice_bool_array:np.ndarray,ice_band_df:np.ndarray,threshold:float,**kwargs):
         #Defining keyword arguments
         defaultKwargs = {'save_step':False}
         kwargs = {**defaultKwargs,**kwargs}
@@ -304,7 +320,7 @@ class M3_Stamp():
             except:
                 pass
             
-            tf.imwrite(os.path.join(self.folder_path,f'band_depth_values_{threshold:.2f}',f'{self.stamp_name}.tif'),band_depth_map.astype('float32'))
+            tf.imwrite(os.path.join(self.folder_path,f'band_depth_values',f'{self.stamp_name}.tif'),band_depth_map.astype('float32'))
             tf.imwrite(os.path.join(self.folder_path,f'band_depth_bool_{threshold:.2f}',f'{self.stamp_name}.tif'),band_depth_bool.astype('float32'))
 
         return band_depth_bool,band_depth_thresh_df

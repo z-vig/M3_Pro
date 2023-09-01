@@ -51,7 +51,7 @@ def bd_mapping(save_step:bool)->None:
         
         input_im,loc_im,obs_im,ice_bool,ice_loc = tf.imread(input_path),tf.imread(loc_path),tf.imread(obs_path),tf.imread(ice_bool_path),pd.read_csv(ice_loc_path)
         stamp_object = M3_Stamp(input_im,loc_im,obs_im,stamp_name,folder_path)
-        bd_bool,summary_df = stamp_object.band_depth_mapping(ice_bool_array=ice_bool,ice_band_df=ice_loc,threshold=THRESH,save_step=save_step)
+        bd_bool,summary_df = stamp_object.band_depth_map(ice_bool_array=ice_bool,ice_band_df=ice_loc,threshold=THRESH,save_step=save_step)
         df_list.append(summary_df)
         prog+=1
         print (f'\rAnalysis for {stamp_name} complete ({prog/tot:.2%})',end='\r')

@@ -1,5 +1,5 @@
 '''
-Script for utilizing the M3 Image Class to calculate the euclidian distance between a reference spectrum and every pixel in an M3 stamp
+Script for utilizing the M3 Image Class to run a spectral angle mapping algorithm with reference to a given reference spectrum
 '''
 #%%
 import M3_Image_Class
@@ -15,7 +15,7 @@ import time
 from tkinter.filedialog import askdirectory as askdir
 import tifffile as tf
 
-def ed_mapping(save_step:bool,reference_spectrum:np.ndarray)->None:
+def sa_mapping(save_step:bool,reference_spectrum:np.ndarray)->None:
     print ('Select Analysis Folder:')
     #folder_path = 'D:/Data/Ice_Pipeline_Out_8-7-23'
     folder_path = askdir()
@@ -23,7 +23,7 @@ def ed_mapping(save_step:bool,reference_spectrum:np.ndarray)->None:
     print ('Select input folder for spectral angle mapping step:')
     input_path = askdir()
     #input_path = 'D:/Data/Ice_Pipeline_Out_8-7-23/rfl_smooth_complete'
-    THRESH = float(input('Enter the euclidian distance threshold value for ice-positive detection\n>>>'))
+    THRESH = float(input('Enter the spectral angle threshold value for ice-positive detection\n>>>'))
     print (f'The {os.path.basename(input_path)} folder has been selected as the processing input') #os.path.join(folder_path,'rfl_cropped')
     all_input_paths = [os.path.join(input_path,i) for i in os.listdir(input_path)]
     all_loc_paths = [os.path.join(folder_path,'loc_cropped',i) for i in os.listdir(os.path.join(folder_path,'loc_cropped'))]
@@ -39,21 +39,21 @@ def ed_mapping(save_step:bool,reference_spectrum:np.ndarray)->None:
     for input_path,loc_path,obs_path,stamp_name in zip(all_input_paths,all_loc_paths,all_obs_paths,stamp_names):
         input_im,loc_im,obs_im = tf.imread(input_path),tf.imread(loc_path),tf.imread(obs_path)
         stamp_object = M3_Stamp(input_im,loc_im,obs_im,stamp_name,folder_path)
-        summary_df,euc_dist_bool = stamp_object.spectral_euclidian_distance_mapping(reference_spectrum=reference_spectrum,threshold=THRESH,save_step=save_step)
+        summary_df,spec_ang_bool = stamp_object.spectral_angle_map(reference_spectrum=reference_spectrum,threshold=THRESH,save_step=save_step)
         df_list.append(summary_df)
         prog+=1
         print (f'\rAnalysis for {stamp_name} complete ({prog/tot:.2%})',end='\r')
     
     if save_step==True:
         all_stamps_df = pd.concat(df_list,ignore_index=True)
-        all_stamps_df.to_csv(os.path.join(folder_path,f'euclidian_distance_{THRESH}_summary.csv'))
+        all_stamps_df.to_csv(os.path.join(folder_path,f'spectral_angle_{THRESH}_summary.csv'))
     else:
         pass
 
-    print (f'\n>>>Euclidian Distance Mapping complete for {THRESH}!')
+    print (f'\n>>>Spectral Angle Mapping complete for {THRESH} degrees!')
 
 if __name__ == "__main__":
-    ##Running euclidian distance mapping step with reference to USGS frost spectrum
+    ##Running spectral angle mapping step with reference to USGS frost spectrum
     folder_path = 'D:/Data/Ice_Pipeline_Out_8-7-23'
     sample_in,sample_loc,sample_obs = (os.path.join(folder_path,i,os.listdir(os.path.join(folder_path,i))[0]) for i in ['rfl_smooth_complete','loc_cropped','obs_cropped'])
     sample_in,sample_loc,sample_obs = [tf.imread(i) for i in [sample_in,sample_loc,sample_obs]]
@@ -65,4 +65,6 @@ if __name__ == "__main__":
     analyzed_wavelengths = M3_Stamp(sample_in,sample_loc,sample_obs,stamp_names[0],folder_path).analyzed_wavelengths
 
     wvl,USGS_frost = get_USGS_H2OFrost('D:/Data/USGS_Water_Ice',analyzed_wavelengths)
-    ed_mapping(False,reference_spectrum=USGS_frost)
+    sa_mapping(False,reference_spectrum=USGS_frost)
+    
+

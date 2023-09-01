@@ -3,9 +3,7 @@ HDR Image Class and Script for locating Ice Pixels using both L1 and L2 data fro
 '''
 #%%
 import time
-import spectral as sp
 import numpy as np
-import spec_plotting
 import matplotlib.pyplot as plt
 import destripe_image
 from copy import copy
@@ -13,21 +11,22 @@ import cubic_spline_image as csi
 import pandas as pd
 import tifffile as tf
 import os
-import M3_UnZip
 from tkinter.filedialog import askdirectory as askdir
 import datetime
 import shutil
 from get_USGS_H2OFrost import get_USGS_H2OFrost
 
 def find(s, ch):
-    return [i for i, ltr in enumerate(s) if ltr == ch]
+    return [i for i, ltr in enumerate(s) if ltr == ch] #Helper function that finds all instances of a character in a string
 
 class TIF_Image():
     # Constructor method
     def __init__(self,rfl_path,loc_path,obs_path,auxInfo_path):
-        self.rfl_image = tf.imread(rfl_path)
-        self.loc_data = tf.imread(loc_path)
-        self.obs_data = tf.imread(obs_path)
+        self.rfl_image = tf.imread(rfl_path) #loading reflectance image (Nx304xnumBands)
+        self.loc_data = tf.imread(loc_path) #loading location backplane image (Nx304x3[lat,long,elev])
+        self.obs_data = tf.imread(obs_path) #loading observation data (Nx304x9)
+                                            #3rd Dimension Values (from Iasaacson et al., 2011): [To-sun Azimuth (deg), To-Sun Zenith (deg), To-M3 Azimuth (deg), To-M3 Zenith (deg),
+                                            #Phase (deg), To-Sun Path Length (au-.982),To-M3 Path Length (m), Facet Slope (deg), Facet Aspect (deg), Facet (cos(i), unitless)]
 
     @property
     def datetime(self)->str:
