@@ -15,7 +15,7 @@ import time
 from tkinter.filedialog import askdirectory as askdir
 import tifffile as tf
 
-def bd_mapping(save_step:bool)->None:
+def map_bd(save_step:bool)->None:
     print ('Select Analysis Folder:')
     #folder_path = 'D:/Data/Ice_Pipeline_Out_8-7-23'
     folder_path = askdir()
@@ -64,4 +64,4 @@ def bd_mapping(save_step:bool)->None:
 
 if __name__ == "__main__":
     ##Running band depth mapping step
-    bd_mapping(True)
+    map_bd(True)

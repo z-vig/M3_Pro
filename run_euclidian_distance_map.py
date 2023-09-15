@@ -15,7 +15,7 @@ import time
 from tkinter.filedialog import askdirectory as askdir
 import tifffile as tf
 
-def ed_mapping(save_step:bool,reference_spectrum:np.ndarray)->None:
+def map_ed(save_step:bool,reference_spectrum:np.ndarray)->None:
     print ('Select Analysis Folder:')
     #folder_path = 'D:/Data/Ice_Pipeline_Out_8-7-23'
     folder_path = askdir()
@@ -65,4 +65,4 @@ if __name__ == "__main__":
     analyzed_wavelengths = M3_Stamp(sample_in,sample_loc,sample_obs,stamp_names[0],folder_path).analyzed_wavelengths
 
     wvl,USGS_frost = get_USGS_H2OFrost('D:/Data/USGS_Water_Ice',analyzed_wavelengths)
-    ed_mapping(False,reference_spectrum=USGS_frost)
+    map_ed(False,reference_spectrum=USGS_frost)
