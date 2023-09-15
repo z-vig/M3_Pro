@@ -5,7 +5,7 @@ Python script for obtaining necessary information about uploaded mosaic dataset
 ##Import necessary modules
 #%%
 import numpy as np
-import Locate_Ice_TIF
+import Deprecated_Scripts.Locate_Ice_TIF as Locate_Ice_TIF
 import os
 import pandas as pd
 import M3_UnZip
