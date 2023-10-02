@@ -15,7 +15,7 @@ import time
 from tkinter.filedialog import askdirectory as askdir
 import tifffile as tf
 
-def map_ed(save_step:bool,reference_spectrum:np.ndarray)->None:
+def map_ed(save_step:bool,reference_spectrum:np.ndarray,ref_spec_name:str)->None:
     print ('Select Analysis Folder:')
     #folder_path = 'D:/Data/Ice_Pipeline_Out_8-7-23'
     folder_path = askdir()
@@ -39,7 +39,7 @@ def map_ed(save_step:bool,reference_spectrum:np.ndarray)->None:
     for input_path,loc_path,obs_path,stamp_name in zip(all_input_paths,all_loc_paths,all_obs_paths,stamp_names):
         input_im,loc_im,obs_im = tf.imread(input_path),tf.imread(loc_path),tf.imread(obs_path)
         stamp_object = M3_Stamp(input_im,loc_im,obs_im,stamp_name,folder_path)
-        summary_df,euc_dist_bool = stamp_object.euclidian_distance_map(reference_spectrum=reference_spectrum,threshold=THRESH,save_step=save_step)
+        summary_df,euc_dist_bool = stamp_object.euclidian_distance_map(reference_spectrum=reference_spectrum,ref_spec_name=ref_spec_name,threshold=THRESH,save_step=save_step)
         df_list.append(summary_df)
         prog+=1
         print (f'\rAnalysis for {stamp_name} complete ({prog/tot:.2%})',end='\r')

@@ -216,7 +216,7 @@ class M3_Stamp():
 
         return spec_ang_threshold_df,spec_ang_bool
     
-    def euclidian_distance_map(self,reference_spectrum:np.ndarray,threshold:float,**kwargs)->np.ndarray:
+    def euclidian_distance_map(self,reference_spectrum:np.ndarray,ref_spec_name:str,threshold:float,**kwargs)->np.ndarray:
         #Defining keyword arguments
         defaultKwargs = {'save_step':False}
         kwargs = {**defaultKwargs,**kwargs}
@@ -235,17 +235,17 @@ class M3_Stamp():
 
         if kwargs.get('save_step')==True:
             try:
-                os.mkdir(os.path.join(self.folder_path,f'euclidian_distance_bool_{threshold}'))
+                os.mkdir(os.path.join(self.folder_path,f'euclidian_distance_bool_{threshold}_{ref_spec_name}'))
             except:
                 pass
             try:
-                os.mkdir(os.path.join(self.folder_path,f'euclidian_distance_values'))
+                os.mkdir(os.path.join(self.folder_path,f'euclidian_distance_values_{ref_spec_name}'))
             except:
                 pass
 
             #band_loc_df.to_csv(os.path.join(self.folder_path,'ice_band_location_summary.csv'))
-            tf.imwrite(os.path.join(self.folder_path,f'euclidian_distance_values',f'{self.stamp_name}.tif'),self.euc_dist_map.astype('float32'))
-            tf.imwrite(os.path.join(self.folder_path,f'euclidian_distance_bool_{threshold}',f'{self.stamp_name}.tif'),euc_dist_bool.astype('float32'))
+            tf.imwrite(os.path.join(self.folder_path,f'euclidian_distance_values_{ref_spec_name}',f'{self.stamp_name}.tif'),self.euc_dist_map.astype('float32'))
+            tf.imwrite(os.path.join(self.folder_path,f'euclidian_distance_bool_{threshold}_{ref_spec_name}',f'{self.stamp_name}.tif'),euc_dist_bool.astype('float32'))
 
         return euc_dist_threshold_df,euc_dist_bool
 
